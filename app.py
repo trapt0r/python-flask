@@ -24,7 +24,7 @@ def command_injection(user_input):
 
 def weak_hashing(password):
     # Weak hashing algorithm (MD5 is broken)
-    return hashlib.md5(password.encode()).hexdigest()
+    return hashlib.sha256(password.encode()).hexdigest()
 
 def insecure_input_validation(password):
     # Improper input validation (allows weak passwords)
