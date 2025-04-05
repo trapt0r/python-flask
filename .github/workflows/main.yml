@@ -1,21 +1,42 @@
-name: Check Web Page
+name: Check Web Page with Playwright
 
 on:
-  schedule:
-    - cron: '0 * * * *'  # every hour
   workflow_dispatch:
+  schedule:
+    - cron: '0 * * * *'  # Every hour
 
 jobs:
-  playwright-check:
+  check-page:
     runs-on: ubuntu-latest
     container:
-      image: mcr.microsoft.com/playwright/python:v1.51.0-noble  # official Playwright image with Python
+      image: mcr.microsoft.com/playwright/python:v1.51.0-noble
     steps:
-      - name: Run Playwright Check
+      - name: Install Playwright
         run: |
-          pip install virtualenv
-          python -m venv venv
-          source venv/bin/activate
-          pip install playwright
+          pip install --no-cache-dir playwright
           playwright install --with-deps
-          python run-playwright.py
+
+      - name: Write Python script safely
+        run: |
+          echo "import asyncio" > check.py
+          echo "from playwright.async_api import async_playwright" >> check.py
+          echo "" >> check.py
+          echo "async def run():" >> check.py
+          echo "    try:" >> check.py
+          echo "        async with async_playwright() as p:" >> check.py
+          echo "            browser = await p.chromium.launch()" >> check.py
+          echo "            page = await browser.new_page()" >> check.py
+          echo "            response = await page.goto('https://example.com', timeout=10000)" >> check.py
+          echo "            if response and response.ok:" >> check.py
+          echo "                print('✅ Page is up')" >> check.py
+          echo "            else:" >> check.py
+          echo "                raise Exception('❌ Page returned non-OK status')" >> check.py
+          echo "            await browser.close()" >> check.py
+          echo "    except Exception as e:" >> check.py
+          echo "        print(e)" >> check.py
+          echo "        exit(1)" >> check.py
+          echo "" >> check.py
+          echo "asyncio.run(run())" >> check.py
+
+      - name: Run Playwright check
+        run: python check.py
