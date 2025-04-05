@@ -13,8 +13,9 @@ jobs:
     steps:
       - name: Run Playwright Check
         run: |
+          pip install virtualenv
           python -m venv venv
           source venv/bin/activate
           pip install playwright
           playwright install --with-deps
-          python -V
+          python run-playwright.py
