@@ -2,14 +2,19 @@ name: Check Web Page with Playwright
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 * * * *'  # Every hour
+    inputs:
+      url:
+        description: 'URL to check'
+        required: true
+        default: 'https://example.com'
 
 jobs:
   check-page:
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright/python:v1.51.0-noble
+    env:
+      TARGET_URL: ${{ github.event.inputs.url }}
     steps:
       - name: Install Playwright
         run: |
@@ -18,7 +23,8 @@ jobs:
 
       - name: Write Python script safely
         run: |
-          echo "import asyncio" > check.py
+          echo "import os" > check.py
+          echo "import asyncio" >> check.py
           echo "from playwright.async_api import async_playwright" >> check.py
           echo "" >> check.py
           echo "async def run():" >> check.py
@@ -26,7 +32,9 @@ jobs:
           echo "        async with async_playwright() as p:" >> check.py
           echo "            browser = await p.chromium.launch()" >> check.py
           echo "            page = await browser.new_page()" >> check.py
-          echo "            response = await page.goto('https://example.com', timeout=10000)" >> check.py
+          echo "            url = os.environ.get('TARGET_URL')" >> check.py
+          echo "            print(f'🔍 Checking URL: {url}')" >> check.py
+          echo "            response = await page.goto(url, timeout=10000)" >> check.py
           echo "            if response and response.ok:" >> check.py
           echo "                print('✅ Page is up')" >> check.py
           echo "            else:" >> check.py
