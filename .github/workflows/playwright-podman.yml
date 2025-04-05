@@ -24,12 +24,19 @@ jobs:
         run: |
           podman run --rm \
             -e TARGET_URL="$TARGET_URL" \
+            -e REQUESTS_CA_BUNDLE="/certs/cacert.pem" \
+            -e SSL_CERT_FILE="/certs/cacert.pem" \
             -v "${PWD}:/app:Z" \
+            -v "/opt/ghagent/certs:/certs:Z" \
             -w /app \
             --security-opt label=disable \
             mcr.microsoft.com/playwright/python:v1.51.0-noble \
             bash -c "
-              pip install --no-cache-dir playwright && \
+              pip install --no-cache-dir \
+                --cert /certs/cacert.pem \
+                --index-url https://your-nexus-host/repository/pypi-all/simple \
+                playwright && \
               playwright install --with-deps && \
               python check.py
             "
+
