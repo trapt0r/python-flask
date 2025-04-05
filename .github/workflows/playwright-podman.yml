@@ -1,0 +1,50 @@
+name: Check Web Page (Manual Podman)
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'URL to check'
+        required: true
+        default: 'https://example.com'
+
+jobs:
+  check-page:
+    runs-on: self-hosted
+    env:
+      TARGET_URL: ${{ github.event.inputs.url }}
+    steps:
+      - name: Pull Playwright container
+        run: |
+          podman pull mcr.microsoft.com/playwright/python:v1.51.0-noble
+
+      - name: Run Playwright check inside container
+        run: |
+          podman run --rm \
+            -e TARGET_URL="$TARGET_URL" \
+            --security-opt label=disable \
+            mcr.microsoft.com/playwright/python:v1.51.0-noble \
+            bash -c "
+              pip install --no-cache-dir playwright && \
+              playwright install --with-deps && \
+              echo \"import os\" > check.py && \
+              echo \"import asyncio\" >> check.py && \
+              echo \"from playwright.async_api import async_playwright\" >> check.py && \
+              echo \"async def run():\" >> check.py && \
+              echo \"    try:\" >> check.py && \
+              echo \"        async with async_playwright() as p:\" >> check.py && \
+              echo \"            browser = await p.chromium.launch()\" >> check.py && \
+              echo \"            page = await browser.new_page()\" >> check.py && \
+              echo \"            url = os.environ.get('TARGET_URL')\" >> check.py && \
+              echo \"            print(f'🔍 Checking URL: {url}')\" >> check.py && \
+              echo \"            response = await page.goto(url, timeout=10000)\" >> check.py && \
+              echo \"            if response and response.ok:\" >> check.py && \
+              echo \"                print('✅ Page is up')\" >> check.py && \
+              echo \"            else:\" >> check.py && \
+              echo \"                raise Exception('❌ Page returned non-OK status')\" >> check.py && \
+              echo \"            await browser.close()\" >> check.py && \
+              echo \"    except Exception as e:\" >> check.py && \
+              echo \"        print(e)\" >> check.py && \
+              echo \"        exit(1)\" >> check.py && \
+              echo \"asyncio.run(run())\" >> check.py && \
+              python check.py
