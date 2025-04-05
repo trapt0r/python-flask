@@ -9,7 +9,7 @@ jobs:
   playwright-check:
     runs-on: ubuntu-latest
     container:
-      image: mcr.microsoft.com/playwright/python:v1.43.1-jammy  # official Playwright image with Python
+      image: mcr.microsoft.com/playwright/python:v1.51.0-noble  # official Playwright image with Python
     steps:
       - name: Run Playwright Check
         run: |
