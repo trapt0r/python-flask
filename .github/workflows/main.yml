@@ -1,0 +1,20 @@
+name: Check Web Page
+
+on:
+  schedule:
+    - cron: '0 * * * *'  # every hour
+  workflow_dispatch:
+
+jobs:
+  playwright-check:
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright/python:v1.43.1-jammy  # official Playwright image with Python
+    steps:
+      - name: Run Playwright Check
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          pip install playwright
+          playwright install --with-deps
+          python -V
