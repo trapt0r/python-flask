@@ -1,0 +1,1 @@
+export default function LanguagesRuntimes() { return <div className="p-6">Supported Languages: Java, Python, Node.js</div>; }

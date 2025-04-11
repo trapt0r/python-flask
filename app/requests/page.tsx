@@ -1,0 +1,1 @@
+export default function RequestCenter() { return <div className="p-6">Submit a request for access, onboarding, or tools.</div>; }

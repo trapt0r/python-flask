@@ -1,0 +1,1 @@
+export default function Documentation() { return <div className="p-6">Internal documentation lives here.</div>; }

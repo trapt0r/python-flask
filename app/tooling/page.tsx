@@ -1,0 +1,1 @@
+export default function ToolingCatalog() { return <div className="p-6">Tooling Catalog: Jenkins, GitHub, SonarQube...</div>; }
