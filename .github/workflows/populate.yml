@@ -19,7 +19,6 @@ jobs:
          with:
            distribution: 'microsoft'
            java-version: |
-             11
              17
              21
            check-latest: true
@@ -39,7 +38,7 @@ jobs:
   copy_to_self_hosted_runners:
     strategy:
       matrix:
-        os: ['rhel-laptop-default', 'rhel-laptop-default-gh01']
+        os: ['rhel-laptop-default', 'rhel-laptop-default-gh01', 'rhel-laptop-default-gh02', 'rhel-laptop-default-gh03' ]
     runs-on: ${{ matrix.os }}
     needs: retrieve_tool_cache
     steps:
