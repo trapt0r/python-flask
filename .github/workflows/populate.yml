@@ -26,7 +26,7 @@ jobs:
        - name: package tool cache
          shell: bash
          run: |
-            cd $ {{ runner.tool_cache }}
+            cd ${{ runner.tool_cache }}
             Packages=('Java_Microsoft_jdk')
             tar czvf openjdk.tar.gz "${Packages[@]}"
          continue-on-error: true
