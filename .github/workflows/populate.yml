@@ -1,0 +1,66 @@
+name: deploy frameworks
+run-name: deploy frameworks to self-hosted runner
+permissions:
+  contents: read
+  pull-requests: write
+
+on: workflow_dispatch
+
+jobs: 
+  retrieve_tool_cache:
+     runs-on: ubuntu-latest
+     steps:
+       - name: clear existing tool cache
+         run: |
+           mv " ${{ runner.tool_cache }}" "${{ runner.tool_cache }}.old"
+           mkdir -p "${{ runner.tool_cache }}"
+       - name: setup microsoft java
+         uses: actions/setup-java@v4
+         with:
+           distribution: 'microsoft'
+           java-version: |
+             11
+             17
+             21
+           check-latest: true
+       - name: package tool cache
+         shell: bash
+         run: |
+            cd $ {{ runner.tool_cache }}
+            Packages=('Java_Microsoft_jdk')
+            tar czvf openjdk.tar.gz "${Packages[@]}"
+         continue-on-error: true
+       - name: upload tool cache
+         uses: actions/upload-artifact@v4
+         with:
+           name: openjdk-package
+           path: ${{ runner.tool_cache }}/openjdk.tar.gz
+
+  copy_to_self_hosted_runners:
+    strategy:
+      matrix:
+        os: ['rhel-laptop-default']
+    runs-on: ${{ matrix.os }}
+    needs: retrieve_tool_cache
+    steps:
+      - name: download tool cache
+        uses: actions/download-artifact@v4
+        with:
+          name: openjdk-package
+          path: ${{ runner.tool_cache }}
+      - name: unpack tool cache
+        shell: bash
+        run: tar zxvf ${{ runner.tool_cache }}/openjdk.tar.gz -C ${{ runner.tool_cache }}
+      - name: cleanup
+        shell: bash
+        run: rm -f ${{ runner.tool_cache }}/openjdk.tar.gz
+
+
+
+
+
+
+
+    
+            
+        
