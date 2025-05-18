@@ -7,45 +7,46 @@ jobs:
   build:
     strategy:
       matrix:
-        runner: ['rhel-laptop-default-gh01', 'rhel-laptop-default-gh02', 'rhel-laptop-default-gh03' ]
+        runner: ['rhel-laptop-default-gh01', 'rhel-laptop-default-gh02', 'rhel-laptop-default-gh03']
 
     name: Build on ${{ matrix.runner }}
     runs-on: ${{ matrix.runner }}
 
+    env:
+      MAVEN_HOME: /home/brentlipke/actions-runner/_work/_tool/apache-maven-3.9.9
+      PATH: /home/brentlipke/actions-runner/_work/_tool/apache-maven-3.9.9/bin:${{ env.PATH }}
+      MAVEN_OPTS: >
+        -Dmaven.repo.local=${{ runner.temp }}/m2repo-${{ github.run_id }}
+        -Djansi.tmpdir=${{ runner.temp }}/jansi-${{ github.run_id }}
+        -Djava.io.tmpdir=${{ runner.temp }}/java-tmp-${{ github.run_id }}
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    - name: Set up JDK 21
+
+    - name: Set up JDK
       uses: actions/setup-java@v4
       with:
         java-version: '17'
         distribution: 'microsoft'
         cache: maven
 
-    - name: Debug Verify Maven path and version
+    - name: Prep isolated temp folders
       run: |
-          export MAVEN_HOME=/home/brentlipke/actions-runner/_work/_tool/apache-maven-3.9.9
-          export PATH=$MAVEN_HOME/bin:$PATH
-          export MAVEN_OPTS="-Dmaven.repo.local=$RUNNER_TEMP/m2repo-${{ github.run_id }} -Djansi.tmpdir=$RUNNER_TEMP"
-          which mvn
-          mvn --version
-          echo "Using Maven from: $(which mvn)"
-          mvn -version
+        mkdir -p $RUNNER_TEMP/m2repo-${GITHUB_RUN_ID}
+        mkdir -p $RUNNER_TEMP/jansi-${GITHUB_RUN_ID}
+        mkdir -p $RUNNER_TEMP/java-tmp-${GITHUB_RUN_ID}
 
-    - name: Debug Verify Maven local repo location
+    - name: Verify Maven setup
       run: |
-        export MAVEN_HOME=/home/brentlipke/actions-runner/_work/_tool/apache-maven-3.9.9
-        export PATH=$MAVEN_HOME/bin:$PATH
-        export MAVEN_OPTS="-Dmaven.repo.local=$RUNNER_TEMP/m2repo-${{ github.run_id }} -Djansi.tmpdir=$RUNNER_TEMP"
-        echo "Using Maven local repo: $MAVEN_OPTS"
-        echo "Effective maven.repo.local:"
-        mvn help:evaluate -Dexpression=settings.localRepository -q -DforceStdout
+        echo "Maven path: $(which mvn)"
+        mvn --version
+        echo "MAVEN_OPTS: $MAVEN_OPTS"
 
-    - name: Build with Maven
+    - name: Print effective Maven local repo
+      run: mvn help:evaluate -Dexpression=settings.localRepository -q -DforceStdout
+
+    - name: Build with Maven (and run tests)
       run: |
-        export MAVEN_HOME=/home/brentlipke/actions-runner/_work/_tool/apache-maven-3.9.9
-        export PATH=$MAVEN_HOME/bin:$PATH
-        export MAVEN_OPTS="-Dmaven.repo.local=$RUNNER_TEMP/m2repo-${{ github.run_id }} -Djansi.tmpdir=$RUNNER_TEMP"
-        echo "Using Maven local repo: $MAVEN_OPTS"
-        echo "Effective maven.repo.local:"
+        echo "Running mvn clean install with isolated temp dirs..."
         mvn clean install -X
