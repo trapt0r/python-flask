@@ -1,0 +1,16 @@
+name: return Maven version
+on: workflow_dispatch
+
+jobs:
+  build:
+    runs-on: rhel-laptop-default
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up JDK 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'microsoft'
+        cache: maven
+    - name: return maven version
+      run: mvn --version
