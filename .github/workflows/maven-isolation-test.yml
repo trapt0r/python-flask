@@ -18,8 +18,13 @@ jobs:
 
     - name: Debug Verify Maven path and version
       run: |
-        echo "Using Maven from: $(which mvn)"
-        mvn -version
+          export MAVEN_HOME=/home/brentlipke/actions-runner/_work/_tool/apache-maven-3.9.9
+          export PATH=$MAVEN_HOME/bin:$PATH
+          export MAVEN_OPTS="-Dmaven.repo.local=$RUNNER_TEMP/m2repo-${GITHUB_WORKFLOW_ID} -Djansi.tmpdir=$RUNNER_TEMP"
+          which mvn
+          mvn --version
+          echo "Using Maven from: $(which mvn)"
+          mvn -version
 
     - name: Debug Verify Maven local repo location
       run: |
