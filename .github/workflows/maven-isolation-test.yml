@@ -20,7 +20,7 @@ jobs:
       run: |
           export MAVEN_HOME=/home/brentlipke/actions-runner/_work/_tool/apache-maven-3.9.9
           export PATH=$MAVEN_HOME/bin:$PATH
-          export MAVEN_OPTS="-Dmaven.repo.local=$RUNNER_TEMP/m2repo-${{ github.workflow_id }} -Djansi.tmpdir=$RUNNER_TEMP"
+          export MAVEN_OPTS="-Dmaven.repo.local=$RUNNER_TEMP/m2repo-${{ github.run_id }} -Djansi.tmpdir=$RUNNER_TEMP"
           which mvn
           mvn --version
           echo "Using Maven from: $(which mvn)"
@@ -30,10 +30,16 @@ jobs:
       run: |
         export MAVEN_HOME=/home/brentlipke/actions-runner/_work/_tool/apache-maven-3.9.9
         export PATH=$MAVEN_HOME/bin:$PATH
-        export MAVEN_OPTS="-Dmaven.repo.local=$RUNNER_TEMP/m2repo-${{ github.workflow_id }} -Djansi.tmpdir=$RUNNER_TEMP"
+        export MAVEN_OPTS="-Dmaven.repo.local=$RUNNER_TEMP/m2repo-${{ github.run_id }} -Djansi.tmpdir=$RUNNER_TEMP"
         echo "Using Maven local repo: $MAVEN_OPTS"
         echo "Effective maven.repo.local:"
         mvn help:evaluate -Dexpression=settings.localRepository -q -DforceStdout
 
     - name: Build with Maven
-      run: mvn clean install -X
+      run: |
+        export MAVEN_HOME=/home/brentlipke/actions-runner/_work/_tool/apache-maven-3.9.9
+        export PATH=$MAVEN_HOME/bin:$PATH
+        export MAVEN_OPTS="-Dmaven.repo.local=$RUNNER_TEMP/m2repo-${{ github.run_id }} -Djansi.tmpdir=$RUNNER_TEMP"
+        echo "Using Maven local repo: $MAVEN_OPTS"
+        echo "Effective maven.repo.local:"
+        mvn clean install -X
