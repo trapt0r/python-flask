@@ -29,8 +29,8 @@ jobs:
         export PATH=$MAVEN_HOME/bin:$PATH
         export MAVEN_OPTS="
           -Dmaven.repo.local=${{ runner.temp }}/m2repo-${{ github.run_id }}
-          -Djansi.tmpdir=${{ runner.temp }}/jansi.tmpdir-${{ github.run_id }}
-          -Djava.io.tmpdir=${{ runner.temp }}/java.io-${{ github.run_id }}
+          -Djansi.tmpdir=${{ runner.temp }}
+          -Djava.io.tmpdir=${{ runner.temp }}
         "
 
         echo "Testing on runner: ${{ matrix.runner }} | build ID: ${{ matrix.build_id }}"
