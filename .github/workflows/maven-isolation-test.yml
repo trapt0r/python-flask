@@ -12,12 +12,6 @@ jobs:
     name: Build on ${{ matrix.runner }}
     runs-on: ${{ matrix.runner }}
 
-    env:
-      PATH: /home/brentlipke/actions-runner/_work/_tool/apache-maven-3.9.9/bin:${{ env.PATH }}
-      MAVEN_OPTS: >
-        -Dmaven.repo.local=${{ runner.temp }}/m2repo-${{ github.workflow_id }}
-        -Djansi.tmpdir=${{ runner.temp }}/jansi-${{ github.workflow_id }}
-
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
