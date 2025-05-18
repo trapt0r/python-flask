@@ -1,0 +1,37 @@
+name: Maven Isolation Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        runner: ['rhel-laptop-default-gh01', 'rhel-laptop-default-gh02', 'rhel-laptop-default-gh03' ]
+
+    name: Build on ${{ matrix.runner }}
+    runs-on: ${{ matrix.runner }}
+
+    env:
+      PATH: /home/brentlipke/actions-runner/_work/_tool/apache-maven-3.9.9/bin:${{ env.PATH }}
+      MAVEN_OPTS: >
+        -Dmaven.repo.local=${{ runner.temp }}/m2repo-${{ github.workflow_id }}
+        -Djansi.tmpdir=${{ runner.temp }}/jansi-${{ github.workflow_id }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Debug Verify Maven path and version
+      run: |
+        echo "Using Maven from: $(which mvn)"
+        mvn -version
+
+    - name: Debug Verify Maven local repo location
+      run: |
+        echo "Using Maven local repo: $MAVEN_OPTS"
+        echo "Effective maven.repo.local:"
+        mvn help:evaluate -Dexpression=settings.localRepository -q -DforceStdout
+
+    - name: Build with Maven
+      run: mvn clean install -X
