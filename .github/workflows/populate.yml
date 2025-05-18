@@ -10,10 +10,10 @@ jobs:
   retrieve_tool_cache:
      runs-on: ubuntu-latest
      steps:
-       - name: clear existing tool cache
-         run: |
-           mv " ${{ runner.tool_cache }}" "${{ runner.tool_cache }}.old"
-           mkdir -p "${{ runner.tool_cache }}"
+       # - name: clear existing tool cache
+       #   run: |
+       #     mv " ${{ runner.tool_cache }}" "${{ runner.tool_cache }}.old"
+       #     mkdir -p "${{ runner.tool_cache }}"
        - name: setup microsoft java
          uses: actions/setup-java@v4
          with:
