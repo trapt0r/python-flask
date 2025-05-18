@@ -39,7 +39,7 @@ jobs:
   copy_to_self_hosted_runners:
     strategy:
       matrix:
-        os: ['rhel-laptop-default']
+        os: ['rhel-laptop-default', 'rhel-laptop-default-gh01']
     runs-on: ${{ matrix.os }}
     needs: retrieve_tool_cache
     steps:
