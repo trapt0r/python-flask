@@ -12,14 +12,6 @@ jobs:
     name: Build on ${{ matrix.runner }}
     runs-on: ${{ matrix.runner }}
 
-    env:
-      MAVEN_HOME: /home/brentlipke/actions-runner/_work/_tool/apache-maven-3.9.9
-      PATH: /home/brentlipke/actions-runner/_work/_tool/apache-maven-3.9.9/bin:${{ env.PATH }}
-      MAVEN_OPTS: >
-        -Dmaven.repo.local=${{ runner.temp }}/m2repo-${{ github.run_id }}
-        -Djansi.tmpdir=${{ runner.temp }}/jansi-${{ github.run_id }}
-        -Djava.io.tmpdir=${{ runner.temp }}/java-tmp-${{ github.run_id }}
-
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -39,14 +31,35 @@ jobs:
 
     - name: Verify Maven setup
       run: |
+        export MAVEN_HOME=/home/brentlipke/actions-runner/_work/_tool/apache-maven-3.9.9
+        export PATH=$MAVEN_HOME/bin:$PATH
+        export MAVEN_OPTS="
+          -Dmaven.repo.local=$RUNNER_TEMP/m2repo-${GITHUB_RUN_ID}
+          -Djansi.tmpdir=$RUNNER_TEMP/jansi-${GITHUB_RUN_ID}
+          -Djava.io.tmpdir=$RUNNER_TEMP/java-tmp-${GITHUB_RUN_ID}
+        "
         echo "Maven path: $(which mvn)"
         mvn --version
         echo "MAVEN_OPTS: $MAVEN_OPTS"
 
     - name: Print effective Maven local repo
-      run: mvn help:evaluate -Dexpression=settings.localRepository -q -DforceStdout
+      run: |
+        export MAVEN_HOME=/home/brentlipke/actions-runner/_work/_tool/apache-maven-3.9.9
+        export PATH=$MAVEN_HOME/bin:$PATH
+        export MAVEN_OPTS="
+          -Dmaven.repo.local=$RUNNER_TEMP/m2repo-${GITHUB_RUN_ID}
+          -Djansi.tmpdir=$RUNNER_TEMP/jansi-${GITHUB_RUN_ID}
+          -Djava.io.tmpdir=$RUNNER_TEMP/java-tmp-${GITHUB_RUN_ID}
+        "
+        mvn help:evaluate -Dexpression=settings.localRepository -q -DforceStdout
 
     - name: Build with Maven (and run tests)
       run: |
-        echo "Running mvn clean install with isolated temp dirs..."
+        export MAVEN_HOME=/home/brentlipke/actions-runner/_work/_tool/apache-maven-3.9.9
+        export PATH=$MAVEN_HOME/bin:$PATH
+        export MAVEN_OPTS="
+          -Dmaven.repo.local=$RUNNER_TEMP/m2repo-${GITHUB_RUN_ID}
+          -Djansi.tmpdir=$RUNNER_TEMP/jansi-${GITHUB_RUN_ID}
+          -Djava.io.tmpdir=$RUNNER_TEMP/java-tmp-${GITHUB_RUN_ID}
+        "
         mvn clean install -X
