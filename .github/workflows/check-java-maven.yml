@@ -1,20 +1,24 @@
 name: return Maven version
+
 on: workflow_dispatch
 
 jobs:
   build:
     runs-on: rhel-laptop-default
-    env:
-      MAVEN_HOME: /home/brentlipke/actions-runner/_work/_tool/apache-maven-3.9.9
-      PATH: /home/brentlipke/actions-runner/_work/_tool/apache-maven-3.9.9/bin:${{ env.PATH }}
-      MAVEN_OPTS: "-Dmaven.repo.local=${{ runner.temp }}/m2repo-${{ github.workflow_id }} -Djansi.tmpdir=${{ runner.temp }}"
     steps:
-    - uses: actions/checkout@v4
-    - name: Set up JDK 21
-      uses: actions/setup-java@v4
-      with:
-        java-version: '17'
-        distribution: 'microsoft'
-        cache: maven
-    - name: return maven version
-      run: mvn --version
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'microsoft'
+          cache: maven
+
+      - name: Set up Maven and return version
+        run: |
+          export MAVEN_HOME=/home/brentlipke/actions-runner/_work/_tool/apache-maven-3.9.9
+          export PATH=$MAVEN_HOME/bin:$PATH
+          export MAVEN_OPTS="-Dmaven.repo.local=$RUNNER_TEMP/m2repo-${GITHUB_WORKFLOW_ID} -Djansi.tmpdir=$RUNNER_TEMP"
+          which mvn
+          mvn --version
