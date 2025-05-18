@@ -28,6 +28,9 @@ jobs:
 
     - name: Debug Verify Maven local repo location
       run: |
+        export MAVEN_HOME=/home/brentlipke/actions-runner/_work/_tool/apache-maven-3.9.9
+        export PATH=$MAVEN_HOME/bin:$PATH
+        export MAVEN_OPTS="-Dmaven.repo.local=$RUNNER_TEMP/m2repo-${GITHUB_WORKFLOW_ID} -Djansi.tmpdir=$RUNNER_TEMP"
         echo "Using Maven local repo: $MAVEN_OPTS"
         echo "Effective maven.repo.local:"
         mvn help:evaluate -Dexpression=settings.localRepository -q -DforceStdout
