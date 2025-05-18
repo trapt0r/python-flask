@@ -23,19 +23,14 @@ jobs:
         java-version: '21'
         distribution: 'microsoft'
 
-    - name: Prepare shared temp directories
-      run: |
-        sudo mkdir -p /tmp/shared-jansi /tmp/shared-tmp
-        sudo chmod 1777 /tmp/shared-jansi /tmp/shared-tmp  # world-writable with sticky bit
-
     - name: Run Maven stress test
       run: |
         export MAVEN_HOME=/home/brentlipke/actions-runner/_work/_tool/apache-maven-3.9.9
         export PATH=$MAVEN_HOME/bin:$PATH
         export MAVEN_OPTS="
-          -Dmaven.repo.local=/tmp/shared-m2
-          -Djansi.tmpdir=/tmp/shared-jansi
-          -Djava.io.tmpdir=/tmp/shared-tmp
+          -Dmaven.repo.local=/tmp
+          -Djansi.tmpdir=/tmp
+          -Djava.io.tmpdir=/tmp
         "
 
         echo "Testing on runner: ${{ matrix.runner }} | build ID: ${{ matrix.build_id }}"
