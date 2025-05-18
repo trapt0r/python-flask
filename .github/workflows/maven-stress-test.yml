@@ -1,0 +1,44 @@
+name: Maven Stress Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  stress-test:
+    strategy:
+      matrix:
+        runner: ['rhel-laptop-default-gh01', 'rhel-laptop-default-gh02', 'rhel-laptop-default-gh03']
+        build_id: [1, 2, 3, 4, 5]  # 3 runners × 5 jobs = 15 concurrent builds
+
+    name: Build ${{ matrix.build_id }} on ${{ matrix.runner }}
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up JDK
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'microsoft'
+
+    - name: Prepare shared temp directories
+      run: |
+        sudo mkdir -p /tmp/shared-jansi /tmp/shared-tmp
+        sudo chmod 1777 /tmp/shared-jansi /tmp/shared-tmp  # world-writable with sticky bit
+
+    - name: Run Maven stress test
+      run: |
+        export MAVEN_HOME=/home/brentlipke/actions-runner/_work/_tool/apache-maven-3.9.9
+        export PATH=$MAVEN_HOME/bin:$PATH
+        export MAVEN_OPTS="
+          -Dmaven.repo.local=/tmp/shared-m2
+          -Djansi.tmpdir=/tmp/shared-jansi
+          -Djava.io.tmpdir=/tmp/shared-tmp
+        "
+
+        echo "Testing on runner: ${{ matrix.runner }} | build ID: ${{ matrix.build_id }}"
+        echo "MAVEN_OPTS: $MAVEN_OPTS"
+
+        mvn clean install -X
