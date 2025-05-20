@@ -2,6 +2,6 @@ package com.example;
 
 public class App {
     public static void main(String[] args) {
-        System.out.println("Hello from Maven test build!");
+        System.out.println("Hello from the Maven Cache Warm Test project!");
     }
 }
