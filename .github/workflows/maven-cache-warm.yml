@@ -1,0 +1,50 @@
+name: Smart Maven Cache Warmer
+
+on:
+  workflow_dispatch:
+
+jobs:
+  warm-cache:
+    runs-on: self-hosted
+
+    env:
+      MAVEN_REPO: /opt/ghagent/seeds/m2-warm-cache
+      MAVEN_OPTS: >
+        -Dmaven.repo.local=/opt/ghagent/seeds/m2-warm-cache
+        -Djansi.tmpdir=${{ runner.temp }}/jansi-${{ github.run_id }}
+        -Djava.io.tmpdir=${{ runner.temp }}/tmp-${{ github.run_id }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Ensure cache directories exist
+      run: |
+        mkdir -p "$MAVEN_REPO"
+        mkdir -p "${RUNNER_TEMP}/jansi-${GITHUB_RUN_ID}"
+        mkdir -p "${RUNNER_TEMP}/tmp-${GITHUB_RUN_ID}"
+
+    - name: Check if cache is already warmed and clean
+      id: check-cache
+      run: |
+        if [ -d "$MAVEN_REPO" ] && [ -z "$(find "$MAVEN_REPO" -name '*.lastUpdated')" ]; then
+          echo "Cache already warmed and clean."
+          echo "skip_warming=true" >> $GITHUB_OUTPUT
+        else
+          echo "Cache missing or dirty. Warming required."
+          echo "skip_warming=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Warm Maven cache (only if needed)
+      if: steps.check-cache.outputs.skip_warming == 'false'
+      run: |
+        echo "Warming Maven cache into $MAVEN_REPO..."
+        mvn -B clean install dependency:go-offline -DskipTests
+
+    - name: Post-warm check
+      run: |
+        echo "Final cache size:"
+        find "$MAVEN_REPO" | wc -l
+        echo "Remaining .lastUpdated files:"
+        find "$MAVEN_REPO" -name '*.lastUpdated' || echo "None"
+
