@@ -115,11 +115,12 @@
             <artifactId>spring-security-core</artifactId>
             <version>6.2.4</version>
         </dependency>
-        <dependency>
-            <groupId>org.bouncycastle</groupId>
-            <artifactId>bcprov-jdk15on</artifactId>
-            <version>1.78.1</version>
-        </dependency>
+<dependency>
+    <groupId>org.bouncycastle</groupId>
+    <artifactId>bcprov-jdk15on</artifactId>
+    <version>1.77</version>
+</dependency>
+
 
         <!-- 🗄️ Databases -->
         <dependency>
