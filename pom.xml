@@ -118,8 +118,9 @@
 <dependency>
     <groupId>org.bouncycastle</groupId>
     <artifactId>bcprov-jdk15on</artifactId>
-    <version>1.77</version>
+    <version>1.70</version>
 </dependency>
+
 
 
         <!-- 🗄️ Databases -->
