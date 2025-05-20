@@ -55,7 +55,11 @@ jobs:
         mkdir -p "$LOCAL_M2"
         mkdir -p "${RUNNER_TEMP}/jansi-${GITHUB_RUN_ID}"
         mkdir -p "${RUNNER_TEMP}/tmp-${GITHUB_RUN_ID}"
-        cp -r /home/brentlipke/actions-runner/seeds/m2-warm-cache/* "$LOCAL_M2/"
+        rsync -a /home/brentlipke/actions-runner/seeds/m2-warm-cache/ "${LOCAL_M2}/"
+
+    - name: Check surefire plugin presence
+      run: |
+        find "${RUNNER_TEMP}/m2repo-${GITHUB_RUN_ID}" -name '*surefire-junit-platform*' || echo "Surefire JAR not found in cache"
 
     - name: Build using isolated Maven cache
       run: |
