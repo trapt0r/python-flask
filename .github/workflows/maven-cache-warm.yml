@@ -5,20 +5,21 @@ on:
 
 jobs:
   warm-cache:
-    runs-on: self-hosted
+    strategy:
+      matrix:
+        runner: ['rhel-laptop-default-gh01', 'rhel-laptop-default-gh02', 'rhel-laptop-default-gh03']
+
+    name: Warm & Build on ${{ matrix.runner }}
+    runs-on: ${{ matrix.runner }}
 
     env:
       MAVEN_REPO: /home/brentlipke/actions-runner/seeds/m2-warm-cache
-      MAVEN_OPTS: >
-        -Dmaven.repo.local=/opt/ghagent/seeds/m2-warm-cache
-        -Djansi.tmpdir=${{ runner.temp }}/jansi-${{ github.run_id }}
-        -Djava.io.tmpdir=${{ runner.temp }}/tmp-${{ github.run_id }}
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Ensure cache directories exist
+    - name: Prepare cache and temp folders
       run: |
         mkdir -p "$MAVEN_REPO"
         mkdir -p "${RUNNER_TEMP}/jansi-${GITHUB_RUN_ID}"
@@ -35,16 +36,21 @@ jobs:
           echo "skip_warming=false" >> $GITHUB_OUTPUT
         fi
 
-    - name: Warm Maven cache (only if needed)
+    - name: Warm Maven cache (if needed)
       if: steps.check-cache.outputs.skip_warming == 'false'
       run: |
-        echo "Warming Maven cache into $MAVEN_REPO..."
-        mvn -B clean install dependency:go-offline -DskipTests
+        export MAVEN_OPTS="
+          -Dmaven.repo.local=$MAVEN_REPO
+          -Djansi.tmpdir=${RUNNER_TEMP}/jansi-${GITHUB_RUN_ID}
+          -Djava.io.tmpdir=${RUNNER_TEMP}/tmp-${GITHUB_RUN_ID}
+        "
+        mvn -B dependency:go-offline
 
-    - name: Post-warm check
+    - name: Build and test with Maven
       run: |
-        echo "Final cache size:"
-        find "$MAVEN_REPO" | wc -l
-        echo "Remaining .lastUpdated files:"
-        find "$MAVEN_REPO" -name '*.lastUpdated' || echo "None"
-
+        export MAVEN_OPTS="
+          -Dmaven.repo.local=$MAVEN_REPO
+          -Djansi.tmpdir=${RUNNER_TEMP}/jansi-${GITHUB_RUN_ID}
+          -Djava.io.tmpdir=${RUNNER_TEMP}/tmp-${GITHUB_RUN_ID}
+        "
+        mvn -B clean verify
