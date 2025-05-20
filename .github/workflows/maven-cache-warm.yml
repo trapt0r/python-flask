@@ -7,7 +7,7 @@ jobs:
   warm-cache:
     strategy:
       matrix:
-        runner: ['rhel-laptop-default-gh01']
+        runner: ['rhel-laptop-default-gh01', 'rhel-laptop-default-gh02', 'rhel-laptop-default-gh03']
 
     name: Warm & Build on ${{ matrix.runner }}
     runs-on: ${{ matrix.runner }}
