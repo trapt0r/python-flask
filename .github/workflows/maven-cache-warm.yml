@@ -9,15 +9,15 @@ jobs:
     runs-on: rhel-laptop-default-gh01
 
     env:
-      MAVEN_REPO: /home/brentlipke/actions-runner/seeds/m2-warm-cache
+      SHARED_MAVEN_CACHE: /home/brentlipke/actions-runner/seeds/m2-warm-cache
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Prepare cache and temp folders
+    - name: Prepare shared cache and temp folders
       run: |
-        mkdir -p "$MAVEN_REPO"
+        mkdir -p "$SHARED_MAVEN_CACHE"
         mkdir -p "${RUNNER_TEMP}/jansi-${GITHUB_RUN_ID}"
         mkdir -p "${RUNNER_TEMP}/tmp-${GITHUB_RUN_ID}"
 
@@ -26,7 +26,7 @@ jobs:
         export MAVEN_HOME=/home/brentlipke/actions-runner/_work/_tool/apache-maven-3.9.9
         export PATH=$MAVEN_HOME/bin:$PATH
         export MAVEN_OPTS="
-          -Dmaven.repo.local=$MAVEN_REPO
+          -Dmaven.repo.local=$SHARED_MAVEN_CACHE
           -Djansi.tmpdir=${RUNNER_TEMP}/jansi-${GITHUB_RUN_ID}
           -Djava.io.tmpdir=${RUNNER_TEMP}/tmp-${GITHUB_RUN_ID}
         "
@@ -34,7 +34,7 @@ jobs:
 
     - name: Clean stale .lastUpdated files
       run: |
-        find "$MAVEN_REPO" -name '*.lastUpdated' -delete
+        find "$SHARED_MAVEN_CACHE" -name '*.lastUpdated' -delete
 
   reuse-on-gh02-gh03:
     name: Reuse Cache on gh02 and gh03
@@ -45,24 +45,25 @@ jobs:
 
     runs-on: ${{ matrix.runner }}
 
-    env:
-      MAVEN_REPO: /home/brentlipke/actions-runner/seeds/m2-warm-cache
-
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Prepare temp folders
+    - name: Prepare isolated Maven repo and temp folders
       run: |
+        export LOCAL_M2="${RUNNER_TEMP}/m2repo-${GITHUB_RUN_ID}"
+        mkdir -p "$LOCAL_M2"
         mkdir -p "${RUNNER_TEMP}/jansi-${GITHUB_RUN_ID}"
         mkdir -p "${RUNNER_TEMP}/tmp-${GITHUB_RUN_ID}"
+        cp -r /home/brentlipke/actions-runner/seeds/m2-warm-cache/* "$LOCAL_M2/"
 
-    - name: Build using warmed Maven cache
+    - name: Build using isolated Maven cache
       run: |
         export MAVEN_HOME=/home/brentlipke/actions-runner/_work/_tool/apache-maven-3.9.9
         export PATH=$MAVEN_HOME/bin:$PATH
+        export LOCAL_M2="${RUNNER_TEMP}/m2repo-${GITHUB_RUN_ID}"
         export MAVEN_OPTS="
-          -Dmaven.repo.local=$MAVEN_REPO
+          -Dmaven.repo.local=$LOCAL_M2
           -Djansi.tmpdir=${RUNNER_TEMP}/jansi-${GITHUB_RUN_ID}
           -Djava.io.tmpdir=${RUNNER_TEMP}/tmp-${GITHUB_RUN_ID}
         "
