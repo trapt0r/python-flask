@@ -8,7 +8,7 @@ jobs:
     runs-on: self-hosted
 
     env:
-      MAVEN_REPO: /opt/ghagent/seeds/m2-warm-cache
+      MAVEN_REPO: /home/brentlipke/actions-runner/seeds/m2-warm-cache
       MAVEN_OPTS: >
         -Dmaven.repo.local=/opt/ghagent/seeds/m2-warm-cache
         -Djansi.tmpdir=${{ runner.temp }}/jansi-${{ github.run_id }}
