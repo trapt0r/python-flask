@@ -1,0 +1,55 @@
+name: Smart Cache Warm & Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  warm-cache:
+    strategy:
+      matrix:
+        runner: ['rhel-laptop-default-gh01', 'rhel-laptop-default-gh02', 'rhel-laptop-default-gh03']
+    name: Warm & Build on ${{ matrix.runner }}
+    runs-on: ${{ matrix.runner }}
+
+    env:
+      MAVEN_REPO: /home/brentlipke/actions-runner/seeds/m2-warm-cache
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Prepare cache and temp folders
+      run: |
+        mkdir -p "$MAVEN_REPO"
+        mkdir -p "${RUNNER_TEMP}/jansi-${GITHUB_RUN_ID}"
+        mkdir -p "${RUNNER_TEMP}/tmp-${GITHUB_RUN_ID}"
+
+    - name: Check if cache is already warmed and clean
+      id: check-cache
+      run: |
+        if [ -d "$MAVEN_REPO" ] && [ -z "$(find "$MAVEN_REPO" -name '*.lastUpdated')" ]; then
+          echo "Cache already warmed and clean."
+          echo "skip_warming=true" >> $GITHUB_OUTPUT
+        else
+          echo "Cache missing or dirty. Warming required."
+          echo "skip_warming=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Warm Maven cache (if needed)
+      if: steps.check-cache.outputs.skip_warming == 'false'
+      run: |
+        export MAVEN_OPTS="
+          -Dmaven.repo.local=$MAVEN_REPO
+          -Djansi.tmpdir=${RUNNER_TEMP}/jansi-${GITHUB_RUN_ID}
+          -Djava.io.tmpdir=${RUNNER_TEMP}/tmp-${GITHUB_RUN_ID}
+        "
+        mvn -B dependency:go-offline
+
+    - name: Build and test with Maven
+      run: |
+        export MAVEN_OPTS="
+          -Dmaven.repo.local=$MAVEN_REPO
+          -Djansi.tmpdir=${RUNNER_TEMP}/jansi-${GITHUB_RUN_ID}
+          -Djava.io.tmpdir=${RUNNER_TEMP}/tmp-${GITHUB_RUN_ID}
+        "
+        mvn -B clean verify
