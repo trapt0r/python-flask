@@ -1,39 +1,54 @@
-name: Maven Stress Test
+name: Smart Maven Cache Warmer (Multi-Runner)
 
 on:
   workflow_dispatch:
 
 jobs:
-  stress-test:
+  warm-cache:
     strategy:
       matrix:
         runner: ['rhel-laptop-default-gh01', 'rhel-laptop-default-gh02', 'rhel-laptop-default-gh03']
-        build_id: [1, 2, 3, 4, 5]  # 3 runners × 5 jobs = 15 concurrent builds
 
-    name: Build ${{ matrix.build_id }} on ${{ matrix.runner }}
+    name: Warm Cache on ${{ matrix.runner }}
     runs-on: ${{ matrix.runner }}
+
+    env:
+      MAVEN_REPO: /home/brentlipke/actions-runner/seeds/m2-warm-cache
+      MAVEN_OPTS: >
+        -Dmaven.repo.local=/home/brentlipke/actions-runner/seeds/m2-warm-cache
+        -Djansi.tmpdir=${{ runner.temp }}/jansi-${{ github.run_id }}
+        -Djava.io.tmpdir=${{ runner.temp }}/tmp-${{ github.run_id }}
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Set up JDK
-      uses: actions/setup-java@v4
-      with:
-        java-version: '21'
-        distribution: 'microsoft'
-
-    - name: Run Maven stress test
+    - name: Ensure cache directories exist
       run: |
-        export MAVEN_HOME=/home/brentlipke/actions-runner/_work/_tool/apache-maven-3.9.9
-        export PATH=$MAVEN_HOME/bin:$PATH
-        export MAVEN_OPTS="
-          -Dmaven.repo.local=${{ runner.temp }}/m2repo-${{ github.run_id }}
-          -Djansi.tmpdir=${{ runner.temp }}
-          -Djava.io.tmpdir=${{ runner.temp }}
-        "
+        mkdir -p "$MAVEN_REPO"
+        mkdir -p "${RUNNER_TEMP}/jansi-${GITHUB_RUN_ID}"
+        mkdir -p "${RUNNER_TEMP}/tmp-${GITHUB_RUN_ID}"
 
-        echo "Testing on runner: ${{ matrix.runner }} | build ID: ${{ matrix.build_id }}"
-        echo "MAVEN_OPTS: $MAVEN_OPTS"
+    - name: Check if cache is already warmed and clean
+      id: check-cache
+      run: |
+        if [ -d "$MAVEN_REPO" ] && [ -z "$(find "$MAVEN_REPO" -name '*.lastUpdated')" ]; then
+          echo "Cache already warmed and clean."
+          echo "skip_warming=true" >> $GITHUB_OUTPUT
+        else
+          echo "Cache missing or dirty. Warming required."
+          echo "skip_warming=false" >> $GITHUB_OUTPUT
+        fi
 
-        mvn clean install -X
+    - name: Warm Maven cache (only if needed)
+      if: steps.check-cache.outputs.skip_warming == 'false'
+      run: |
+        echo "Warming Maven cache into $MAVEN_REPO..."
+        mvn -B clean install dependency:go-offline -DskipTests
+
+    - name: Post-warm check
+      run: |
+        echo "Final cache size on runner ${{ matrix.runner }}:"
+        find "$MAVEN_REPO" | wc -l
+        echo "Remaining .lastUpdated files:"
+        find "$MAVEN_REPO" -name '*.lastUpdated' || echo "None"
