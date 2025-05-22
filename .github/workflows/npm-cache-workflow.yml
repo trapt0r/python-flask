@@ -1,0 +1,119 @@
+name: NPM Cache Warmer and Build Test
+
+on:
+  workflow_dispatch: # Allows manual triggering from the GitHub UI
+  # You might want to uncomment one of these to trigger automatically:
+  # schedule:
+  #   - cron: '0 0 * * *' # Daily at midnight UTC
+  # push:
+  #   branches:
+  #     - main
+  #   paths:
+  #     - 'package-lock.json' # Only warm cache if lock file changes
+
+jobs:
+  cache-warmer:
+    name: Warm NPM Cache on pr00
+    runs-on: [self-hosted, pr00] # This job targets your primary runner (pr00)
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4 # Action to check out your repository code
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4 # Action to set up Node.js environment
+        with:
+          node-version: '20' # Specify your desired Node.js version
+
+      - name: Create NPM cache directory if it doesn't exist
+        run: |
+          mkdir -p /opt/ghagent/cache/npm # Create the shared cache directory
+          chmod -R 777 /opt/ghagent/cache/npm # Ensure the runner user has necessary permissions
+
+      - name: Install dependencies and warm cache
+        run: |
+          echo "Warming cache to /opt/ghagent/cache/npm..."
+          # `npm ci` performs a clean install based on package-lock.json
+          # `--prefer-offline` tries to use existing cache entries first
+          # `--no-audit` skips security audits for faster installation
+          # `--cache` explicitly sets the cache directory
+          npm ci --prefer-offline --no-audit --cache /opt/ghagent/cache/npm
+        env:
+          # This environment variable also ensures npm uses the specified cache path
+          NPM_CONFIG_CACHE: /opt/ghagent/cache/npm
+
+      - name: Verify cache content
+        run: |
+          echo "Cache content on pr00 (first 20 items):"
+          ls -F /opt/ghagent/cache/npm | head -n 20 # List content to confirm cache warming
+
+  build-test:
+    name: Simulate Build with Pre-warmed Cache (${{ matrix.runner_id }})
+    needs: cache-warmer # This job will only run after the `cache-warmer` job completes successfully
+    # `runs-on` can use a generic label (e.g., 'pr') that all secondary runners share,
+    # or you can list specific runner labels if you have them.
+    runs-on: [self-hosted, pr]
+
+    strategy:
+      fail-fast: false # Allows other matrix jobs to continue even if one fails
+      matrix:
+        runner_id: [pr01, pr02, pr03, pr04] # Define the specific runners for parallel execution
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Clear existing npm cache in runner temp on ${{ matrix.runner_id }}
+        run: |
+          echo "Clearing ${{ runner.temp }}/.npm on ${{ matrix.runner_id }} to ensure fresh sync test."
+          # Remove any pre-existing npm cache in the runner's temporary directory.
+          # `|| true` prevents the step from failing if the directory doesn't exist.
+          rm -rf "${{ runner.temp }}/.npm" || true
+
+      - name: Sync pre-warmed cache from pr00 to runner temp on ${{ matrix.runner_id }}
+        run: |
+          # IMPORTANT: This step assumes how your secondary runners can access the cache on pr00.
+          #
+          # Option 1: Shared Network Mount (Recommended if possible)
+          # If `/opt/ghagent/cache/npm` on `pr00` is a network share mounted to the same path
+          # on `pr01-pr04`, then the path is identical.
+          SOURCE_CACHE_PATH="/opt/ghagent/cache/npm"
+
+          # Option 2: rsync over SSH (More robust for physically separate machines)
+          # If runners are on different machines and the cache is local to pr00,
+          # you'd need SSH access. Ensure SSH keys are set up for passwordless login.
+          # SSH_HOST="pr00" # Replace with the actual hostname or IP of pr00
+          # SOURCE_CACHE_PATH="${SSH_HOST}:/opt/ghagent/cache/npm"
+
+          echo "Syncing from $SOURCE_CACHE_PATH to ${{ runner.temp }}/.npm on ${{ matrix.runner_id }}"
+          # `rsync -avz` archives, verboses, and compresses during transfer.
+          # `--exclude` prevents copying transient files that don't belong in the cache.
+          rsync -avz --exclude 'logs' --exclude '.cache' "$SOURCE_CACHE_PATH/" "${{ runner.temp }}/.npm"
+
+      - name: Configure NPM to use synced cache on ${{ matrix.runner_id }}
+        run: |
+          # Set the npm configuration to use the newly synced cache directory
+          npm config set cache "${{ runner.temp }}/.npm"
+          echo "NPM cache configured to: $(npm config get cache)"
+
+      - name: Install dependencies using pre-warmed cache on ${{ matrix.runner_id }}
+        run: |
+          echo "Attempting npm install using synced cache at: $(npm config get cache) on ${{ matrix.runner_id }}"
+          # `npm install` (or `npm ci`) will now primarily use the cache at `runner.temp}/.npm`
+          # `--prefer-offline` is critical to ensure it tries the cache before network
+          npm install --prefer-offline --no-audit
+        env:
+          # This environment variable overrides any global npm cache settings for this run
+          NPM_CONFIG_CACHE: "${{ runner.temp }}/.npm"
+
+      - name: Simulate Build on ${{ matrix.runner_id }}
+        run: |
+          echo "Simulating a build process for ${{ matrix.runner_id }}..."
+          # This command is defined in your package.json scripts
+          npm run build
+          echo "Build simulation complete on ${{ matrix.runner_id }}"
