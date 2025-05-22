@@ -27,25 +27,25 @@ jobs:
 
       - name: Create NPM cache directory if it doesn't exist
         run: |
-          mkdir -p /opt/ghagent/seeds/npm # Create the shared cache directory
-          chmod -R 777 /opt/ghagent/seeds/npm # Ensure the runner user has necessary permissions
+          mkdir -p /home/brentlipke/actions-runner/seeds/npm # Create the shared cache directory
+          chmod -R 777 /home/brentlipke/actions-runner/seeds/npm # Ensure the runner user has necessary permissions
 
       - name: Install dependencies and warm cache
         run: |
-          echo "Warming cache to /opt/ghagent/cache/npm..."
+          echo "Warming cache to /home/brentlipke/actions-runner/cache/npm..."
           # `npm ci` performs a clean install based on package-lock.json
           # `--prefer-offline` tries to use existing cache entries first
           # `--no-audit` skips security audits for faster installation
           # `--cache` explicitly sets the cache directory
-          npm ci --prefer-offline --no-audit --cache /opt/ghagent/cache/npm
+          npm ci --prefer-offline --no-audit --cache /home/brentlipke/actions-runner/cache/npm
         env:
           # This environment variable also ensures npm uses the specified cache path
-          NPM_CONFIG_CACHE: /opt/ghagent/seeds/npm
+          NPM_CONFIG_CACHE: /home/brentlipke/actions-runner/seeds/npm
 
       - name: Verify cache content
         run: |
           echo "Cache content on pr00 (first 20 items):"
-          ls -F /opt/ghagent/seeds/npm | head -n 20 # List content to confirm cache warming
+          ls -F /home/brentlipke/actions-runner/seeds/npm | head -n 20 # List content to confirm cache warming
 
   build-test:
     name: Simulate Build with Pre-warmed Cache (${{ matrix.runner_id }})
@@ -80,15 +80,15 @@ jobs:
           # IMPORTANT: This step assumes how your secondary runners can access the cache on pr00.
           #
           # Option 1: Shared Network Mount (Recommended if possible)
-          # If `/opt/ghagent/cache/npm` on `pr00` is a network share mounted to the same path
+          # If `/home/brentlipke/actions-runner/cache/npm` on `pr00` is a network share mounted to the same path
           # on `pr01-pr04`, then the path is identical.
-          SOURCE_CACHE_PATH="/opt/ghagent/seeds/npm"
+          SOURCE_CACHE_PATH="/home/brentlipke/actions-runner/seeds/npm"
 
           # Option 2: rsync over SSH (More robust for physically separate machines)
           # If runners are on different machines and the cache is local to pr00,
           # you'd need SSH access. Ensure SSH keys are set up for passwordless login.
           # SSH_HOST="pr00" # Replace with the actual hostname or IP of pr00
-          # SOURCE_CACHE_PATH="${SSH_HOST}:/opt/ghagent/cache/npm"
+          # SOURCE_CACHE_PATH="${SSH_HOST}:/home/brentlipke/actions-runner/cache/npm"
 
           echo "Syncing from $SOURCE_CACHE_PATH to ${{ runner.temp }}/.npm on ${{ matrix.runner_id }}"
           # `rsync -avz` archives, verboses, and compresses during transfer.
