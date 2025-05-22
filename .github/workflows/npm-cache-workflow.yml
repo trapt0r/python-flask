@@ -14,7 +14,7 @@ on:
 jobs:
   cache-warmer:
     name: Warm NPM Cache on pr00
-    runs-on: [rhel-laptop-default-gh01] # This job targets your primary runner (pr00)
+    runs-on: [rhel-laptop-default] # This job targets your primary runner (pr00)
 
     steps:
       - name: Checkout code
