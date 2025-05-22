@@ -21,7 +21,7 @@ jobs:
         uses: actions/checkout@v4 # Action to check out your repository code
 
       # --- START DEBUGGING STEPS ---
-      - name: Debug: Show current directory and list files (root)
+      - name: Show current directory and list files (root)
         run: |
           echo "Current working directory (root of repo):"
           pwd
@@ -79,7 +79,7 @@ jobs:
         uses: actions/checkout@v4
 
       # --- START DEBUGGING STEPS ---
-      - name: Debug: Show current directory and list files on ${{ matrix.runner_id }} (root)
+      - name: Show current directory and list files on ${{ matrix.runner_id }} (root)
         run: |
           echo "Current working directory on ${{ matrix.runner_id }} (root of repo):"
           pwd
