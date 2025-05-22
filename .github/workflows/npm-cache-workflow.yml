@@ -40,29 +40,32 @@ jobs:
 
       - name: Create NPM cache directory if it doesn't exist and set permissions
         run: |
-          # --- CORRECTED PATH TO 'cache/npm' ---
           mkdir -p /home/brentlipke/actions-runner/cache/npm # Create the shared cache directory
           chmod -R 777 /home/brentlipke/actions-runner/cache/npm # Ensure the runner user has necessary permissions
 
       - name: Install dependencies and warm cache
         run: |
-          # --- CORRECTED PATH IN ECHO AND --cache FLAG ---
           echo "Warming cache to /home/brentlipke/actions-runner/cache/npm..."
-          # `npm ci` performs a clean install based on package-lock.json
-          # `--prefer-offline` tries to use existing cache entries first
-          # `--no-audit` skips security audits for faster installation
-          # `--cache` explicitly sets the cache directory
           cd node # Navigate into the 'node' subdirectory where package.json is located
           npm ci --prefer-offline --no-audit --cache /home/brentlipke/actions-runner/cache/npm
         env:
-          # --- CORRECTED PATH IN ENV VAR ---
           NPM_CONFIG_CACHE: /home/brentlipke/actions-runner/cache/npm
 
-      - name: Verify cache content
+      # --- NEW VERIFICATION STEP ---
+      - name: Verify installed packages in node_modules (cache-warmer)
         run: |
-          # --- CORRECTED PATH HERE ---
-          echo "Cache content on pr00 (first 20 items):"
+          echo "Listing installed packages in node/node_modules (first 20):"
+          ls -F node_modules/ | head -n 20 # List content of the node_modules directory
+          echo "Total packages installed:"
+          ls -F node_modules/ | wc -l # Count the number of installed packages
+          # Note: This ls command is run AFTER the cd node, so it's relative to 'node/'
+      # --- END NEW VERIFICATION STEP ---
+
+      - name: Verify cache content (top level)
+        run: |
+          echo "Cache content on pr00 (top level - expected: _cacache/, _logs/):"
           ls -F /home/brentlipke/actions-runner/cache/npm | head -n 20 # List content to confirm cache warming
+
 
   build-test:
     name: Simulate Build with Pre-warmed Cache (${{ matrix.runner_id }})
@@ -99,52 +102,40 @@ jobs:
       - name: Clear existing npm cache in runner temp on ${{ matrix.runner_id }}
         run: |
           echo "Clearing ${{ runner.temp }}/.npm on ${{ matrix.runner_id }} to ensure fresh sync test."
-          # Remove any pre-existing npm cache in the runner's temporary directory.
-          # `|| true` prevents the step from failing if the directory doesn't exist.
           rm -rf "${{ runner.temp }}/.npm" || true
 
       - name: Sync pre-warmed cache from pr00 to runner temp on ${{ matrix.runner_id }}
         run: |
-          # IMPORTANT: This step assumes how your secondary runners can access the cache on pr00.
-          #
-          # Option 1: Shared Network Mount (Recommended if possible)
-          # If `/home/brentlipke/actions-runner/cache/npm` on `pr00` is a network share mounted to the same path
-          # on `pr01-pr04`, then the path is identical.
-          # --- CORRECTED PATH TO 'cache/npm' ---
           SOURCE_CACHE_PATH="/home/brentlipke/actions-runner/cache/npm"
-
-          # Option 2: rsync over SSH (More robust for physically separate machines)
-          # If runners are on different machines and the cache is local to pr00,
-          # you'd need SSH access. Ensure SSH keys are set up for passwordless login.
-          # SSH_HOST="pr00" # Replace with the actual hostname or IP of pr00
-          # SOURCE_CACHE_PATH="${SSH_HOST}:/home/brentlipke/actions-runner/cache/npm"
-
           echo "Syncing from $SOURCE_CACHE_PATH to ${{ runner.temp }}/.npm on ${{ matrix.runner_id }}"
-          # `rsync -avz` archives, verboses, and compresses during transfer.
-          # `--exclude` prevents copying transient files that don't belong in the cache.
           rsync -avz --exclude 'logs' --exclude '.cache' "$SOURCE_CACHE_PATH/" "${{ runner.temp }}/.npm"
 
       - name: Configure NPM to use synced cache on ${{ matrix.runner_id }}
         run: |
-          # Set the npm configuration to use the newly synced cache directory
           npm config set cache "${{ runner.temp }}/.npm"
           echo "NPM cache configured to: $(npm config get cache)"
 
       - name: Install dependencies using pre-warmed cache on ${{ matrix.runner_id }}
         run: |
           echo "Attempting npm install using synced cache at: $(npm config get cache) on ${{ matrix.runner_id }}"
-          # `npm install` (or `npm ci`) will now primarily use the cache at `runner.temp}/.npm`
-          # `--prefer-offline` is critical to ensure it tries the cache before network
           cd node # Navigate into the 'node' subdirectory
           npm install --prefer-offline --no-audit
         env:
-          # This environment variable overrides any global npm cache settings for this run
           NPM_CONFIG_CACHE: "${{ runner.temp }}/.npm"
+
+      # --- NEW VERIFICATION STEP ---
+      - name: Verify installed packages in node_modules (build-test)
+        run: |
+          echo "Listing installed packages in node_modules (first 20):"
+          ls -F node_modules/ | head -n 20 # List content of the node_modules directory
+          echo "Total packages installed:"
+          ls -F node_modules/ | wc -l # Count the number of installed packages
+          # Note: This ls command is run AFTER the cd node, so it's relative to 'node/'
+      # --- END NEW VERIFICATION STEP ---
 
       - name: Simulate Build on ${{ matrix.runner_id }}
         run: |
           echo "Simulating a build process for ${{ matrix.runner_id }}..."
-          # This command is defined in your package.json scripts
           cd node # Navigate into the 'node' subdirectory
           npm run build
           echo "Build simulation complete on ${{ matrix.runner_id }}"
