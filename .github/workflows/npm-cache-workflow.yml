@@ -107,6 +107,8 @@ jobs:
           echo "Attempting npm install using synced cache at: $(npm config get cache) on ${{ matrix.runner_id }}"
           # `npm install` (or `npm ci`) will now primarily use the cache at `runner.temp}/.npm`
           # `--prefer-offline` is critical to ensure it tries the cache before network
+          pwd
+          ls -l
           npm install --prefer-offline --no-audit
         env:
           # This environment variable overrides any global npm cache settings for this run
