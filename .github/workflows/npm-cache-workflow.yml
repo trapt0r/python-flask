@@ -37,7 +37,7 @@ jobs:
           # `--prefer-offline` tries to use existing cache entries first
           # `--no-audit` skips security audits for faster installation
           # `--cache` explicitly sets the cache directory
-          ls -la
+          cd node
           npm ci --prefer-offline --no-audit --cache /home/brentlipke/actions-runner/cache/npm
         env:
           # This environment variable also ensures npm uses the specified cache path
