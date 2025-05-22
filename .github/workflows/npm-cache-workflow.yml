@@ -14,7 +14,7 @@ on:
 jobs:
   cache-warmer:
     name: Warm NPM Cache on pr00
-    runs-on: [self-hosted, pr00] # This job targets your primary runner (pr00)
+    runs-on: [rhel-laptop-default-gh01] # This job targets your primary runner (pr00)
 
     steps:
       - name: Checkout code
@@ -27,8 +27,8 @@ jobs:
 
       - name: Create NPM cache directory if it doesn't exist
         run: |
-          mkdir -p /opt/ghagent/cache/npm # Create the shared cache directory
-          chmod -R 777 /opt/ghagent/cache/npm # Ensure the runner user has necessary permissions
+          mkdir -p /opt/ghagent/seeds/npm # Create the shared cache directory
+          chmod -R 777 /opt/ghagent/seeds/npm # Ensure the runner user has necessary permissions
 
       - name: Install dependencies and warm cache
         run: |
@@ -40,25 +40,25 @@ jobs:
           npm ci --prefer-offline --no-audit --cache /opt/ghagent/cache/npm
         env:
           # This environment variable also ensures npm uses the specified cache path
-          NPM_CONFIG_CACHE: /opt/ghagent/cache/npm
+          NPM_CONFIG_CACHE: /opt/ghagent/seeds/npm
 
       - name: Verify cache content
         run: |
           echo "Cache content on pr00 (first 20 items):"
-          ls -F /opt/ghagent/cache/npm | head -n 20 # List content to confirm cache warming
+          ls -F /opt/ghagent/seeds/npm | head -n 20 # List content to confirm cache warming
 
   build-test:
     name: Simulate Build with Pre-warmed Cache (${{ matrix.runner_id }})
     needs: cache-warmer # This job will only run after the `cache-warmer` job completes successfully
     # `runs-on` can use a generic label (e.g., 'pr') that all secondary runners share,
     # or you can list specific runner labels if you have them.
-    runs-on: [self-hosted, pr]
+    #runs-on: [self-hosted, pr]
 
     strategy:
       fail-fast: false # Allows other matrix jobs to continue even if one fails
       matrix:
-        runner_id: [pr01, pr02, pr03, pr04] # Define the specific runners for parallel execution
-
+        runner_id: [rhel-laptop-default-gh01, rhel-laptop-default-gh02, rhel-laptop-default-gh03] # Define the specific runners for parallel execution
+    runs-on : ${{ matrix.runner_id }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -82,7 +82,7 @@ jobs:
           # Option 1: Shared Network Mount (Recommended if possible)
           # If `/opt/ghagent/cache/npm` on `pr00` is a network share mounted to the same path
           # on `pr01-pr04`, then the path is identical.
-          SOURCE_CACHE_PATH="/opt/ghagent/cache/npm"
+          SOURCE_CACHE_PATH="/opt/ghagent/seeds/npm"
 
           # Option 2: rsync over SSH (More robust for physically separate machines)
           # If runners are on different machines and the cache is local to pr00,
