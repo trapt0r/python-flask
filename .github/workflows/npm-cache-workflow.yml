@@ -9,7 +9,7 @@ on:
   #   branches:
   #     - main
   #   paths:
-  #     - 'package-lock.json' # Only warm cache if lock file changes
+  #     - 'node/package-lock.json' # Only warm cache if lock file changes, adjusted for 'node' subdirectory
 
 jobs:
   cache-warmer:
@@ -20,49 +20,76 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4 # Action to check out your repository code
 
+      # --- START DEBUGGING STEPS ---
+      - name: Debug: Show current directory and list files (root)
+        run: |
+          echo "Current working directory (root of repo):"
+          pwd
+          echo "Files in root directory (recursive):"
+          ls -R
+          echo "Attempting to cat package.json in 'node' subdirectory:"
+          cat node/package.json || echo "node/package.json not found or could not be read."
+          echo "Attempting to cat package-lock.json in 'node' subdirectory:"
+          cat node/package-lock.json || echo "node/package-lock.json not found or could not be read."
+      # --- END DEBUGGING STEPS ---
+
       - name: Setup Node.js
         uses: actions/setup-node@v4 # Action to set up Node.js environment
         with:
           node-version: '20' # Specify your desired Node.js version
 
-      - name: Create NPM cache directory if it doesn't exist
+      - name: Create NPM cache directory if it doesn't exist and set permissions
         run: |
-          mkdir -p /home/brentlipke/actions-runner/seeds/npm # Create the shared cache directory
-          chmod -R 777 /home/brentlipke/actions-runner/seeds/npm # Ensure the runner user has necessary permissions
+          # --- CORRECTED PATH TO 'cache/npm' ---
+          mkdir -p /home/brentlipke/actions-runner/cache/npm # Create the shared cache directory
+          chmod -R 777 /home/brentlipke/actions-runner/cache/npm # Ensure the runner user has necessary permissions
 
       - name: Install dependencies and warm cache
         run: |
+          # --- CORRECTED PATH IN ECHO AND --cache FLAG ---
           echo "Warming cache to /home/brentlipke/actions-runner/cache/npm..."
           # `npm ci` performs a clean install based on package-lock.json
           # `--prefer-offline` tries to use existing cache entries first
           # `--no-audit` skips security audits for faster installation
           # `--cache` explicitly sets the cache directory
-          cd node
+          cd node # Navigate into the 'node' subdirectory where package.json is located
           npm ci --prefer-offline --no-audit --cache /home/brentlipke/actions-runner/cache/npm
         env:
-          # This environment variable also ensures npm uses the specified cache path
-          NPM_CONFIG_CACHE: /home/brentlipke/actions-runner/seeds/npm
+          # --- CORRECTED PATH IN ENV VAR ---
+          NPM_CONFIG_CACHE: /home/brentlipke/actions-runner/cache/npm
 
       - name: Verify cache content
         run: |
+          # --- CORRECTED PATH HERE ---
           echo "Cache content on pr00 (first 20 items):"
-          ls -F /home/brentlipke/actions-runner/seeds/npm | head -n 20 # List content to confirm cache warming
+          ls -F /home/brentlipke/actions-runner/cache/npm | head -n 20 # List content to confirm cache warming
 
   build-test:
     name: Simulate Build with Pre-warmed Cache (${{ matrix.runner_id }})
     needs: cache-warmer # This job will only run after the `cache-warmer` job completes successfully
-    # `runs-on` can use a generic label (e.g., 'pr') that all secondary runners share,
-    # or you can list specific runner labels if you have them.
-    #runs-on: [self-hosted, pr]
+    runs-on: ${{ matrix.runner_id }} # Use the matrix variable for the runner
 
     strategy:
       fail-fast: false # Allows other matrix jobs to continue even if one fails
       matrix:
         runner_id: [rhel-laptop-default-gh01, rhel-laptop-default-gh02, rhel-laptop-default-gh03] # Define the specific runners for parallel execution
-    runs-on : ${{ matrix.runner_id }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      # --- START DEBUGGING STEPS ---
+      - name: Debug: Show current directory and list files on ${{ matrix.runner_id }} (root)
+        run: |
+          echo "Current working directory on ${{ matrix.runner_id }} (root of repo):"
+          pwd
+          echo "Files in root directory (recursive) on ${{ matrix.runner_id }}:"
+          ls -R
+          echo "Attempting to cat package.json in 'node' subdirectory on ${{ matrix.runner_id }}:"
+          cat node/package.json || echo "node/package.json not found or could not be read."
+          echo "Attempting to cat package-lock.json in 'node' subdirectory on ${{ matrix.runner_id }}:"
+          cat node/package-lock.json || echo "node/package-lock.json not found or could not be read."
+      # --- END DEBUGGING STEPS ---
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -83,7 +110,8 @@ jobs:
           # Option 1: Shared Network Mount (Recommended if possible)
           # If `/home/brentlipke/actions-runner/cache/npm` on `pr00` is a network share mounted to the same path
           # on `pr01-pr04`, then the path is identical.
-          SOURCE_CACHE_PATH="/home/brentlipke/actions-runner/seeds/npm"
+          # --- CORRECTED PATH TO 'cache/npm' ---
+          SOURCE_CACHE_PATH="/home/brentlipke/actions-runner/cache/npm"
 
           # Option 2: rsync over SSH (More robust for physically separate machines)
           # If runners are on different machines and the cache is local to pr00,
@@ -107,7 +135,7 @@ jobs:
           echo "Attempting npm install using synced cache at: $(npm config get cache) on ${{ matrix.runner_id }}"
           # `npm install` (or `npm ci`) will now primarily use the cache at `runner.temp}/.npm`
           # `--prefer-offline` is critical to ensure it tries the cache before network
-          cd node
+          cd node # Navigate into the 'node' subdirectory
           npm install --prefer-offline --no-audit
         env:
           # This environment variable overrides any global npm cache settings for this run
@@ -117,6 +145,6 @@ jobs:
         run: |
           echo "Simulating a build process for ${{ matrix.runner_id }}..."
           # This command is defined in your package.json scripts
-          cd node
+          cd node # Navigate into the 'node' subdirectory
           npm run build
           echo "Build simulation complete on ${{ matrix.runner_id }}"
