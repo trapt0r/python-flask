@@ -7,7 +7,7 @@ jobs:
   install-az:
     strategy:
       matrix:
-        runner: [ 'rhel-laptop-default', 'rhel-laptop-default-gh01', 'rhel-laptop-default-gh02', 'rhel-laptop-default-gh03' ]
+        runner: [ 'rhel-laptop-default']
 
     runs-on: [self-hosted, "${{ matrix.runner }}"]
 
