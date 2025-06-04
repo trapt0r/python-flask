@@ -1,0 +1,53 @@
+name: Prep Az Module (local)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  install-az:
+    # 4 known self-hosted Linux runners
+    strategy:
+      matrix:
+        runner: [rhel-laptop, rhel-laptop-default-gh01, rhel-laptop-default-gh02, rhel-laptop-default-gh03]
+
+    runs-on: [self-hosted, ${{ matrix.runner }}]
+
+    # This is where we want the modules to live.
+    # ${HOME}/.local/... is already on $PSModulePath when Scope=CurrentUser.
+    env:
+      LOCAL_PS_PATH: ${{ env.HOME }}/.local/share/powershell/Modules
+
+    steps:
+    - name: Ensure local module dir exists
+      run: mkdir -p "$LOCAL_PS_PATH"
+
+    # Optional – speeds up future runs by caching the directory
+    - name: Cache Az modules
+      uses: actions/cache@v4
+      id: az-cache
+      with:
+        path: ${{ env.LOCAL_PS_PATH }}
+        key: az-modules-${{ hashFiles('**/module-version.txt') }}
+
+    - name: Install Az (CurrentUser scope only)
+      if: steps.az-cache.outputs.cache-hit != 'true'
+      shell: pwsh
+      env:
+        # Pre-pend our directory for this session; keeps things hermetic.
+        PSModulePath: "${{ env.LOCAL_PS_PATH }}:$env:PSModulePath"
+      run: |
+        Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force
+        Install-Module -Name Az -Scope CurrentUser -Repository PSGallery -Force -Confirm:$false
+        # (Az pulls in ~60 sub-modules; expect ~200 MB on first run.)
+
+    # Make the path available to *every* later step in this job
+    - name: Export PSModulePath
+      run: |
+        echo "PSModulePath=${LOCAL_PS_PATH}:$PSModulePath" >> $GITHUB_ENV
+
+    # Sanity check (optional)
+    - name: Verify Az import
+      shell: pwsh
+      run: |
+        Import-Module Az.Accounts
+        Get-Module Az.* | Select-Object Name, Version | Sort-Object Name
