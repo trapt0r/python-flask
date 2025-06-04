@@ -9,33 +9,26 @@ jobs:
       matrix:
         runner_label:
           - rhel-laptop-default
-          - rhel-laptop-default-gh01
-          - rhel-laptop-default-gh02
-          - rhel-laptop-default-gh03
 
     runs-on:
       - self-hosted
       - ${{ matrix.runner_label }}
 
     steps:
-    # 1️⃣ Set local PowerShell module path
     - name: Set PowerShell module path
       shell: bash
       run: |
         echo "LOCAL_PS_PATH=$HOME/.local/share/powershell/Modules" >> "$GITHUB_ENV"
         echo "PSModulePath=$HOME/.local/share/powershell/Modules:$PSModulePath" >> "$GITHUB_ENV"
 
-    # 2️⃣ Clean PackageManagement cache
     - name: Clean PackageManagement cache
       shell: bash
       run: rm -rf ~/.local/share/PackageManagement
 
-    # 3️⃣ Ensure local module dir exists
     - name: Ensure local module dir exists
       shell: bash
       run: mkdir -p "$LOCAL_PS_PATH"
 
-    # 4️⃣ Cache Az modules + NuGet + PackageManagement
     - name: Cache Az modules and provider bootstraps
       uses: actions/cache@v4
       id: az-cache
@@ -46,7 +39,6 @@ jobs:
           ~/.local/share/powershell/Modules/NuGet
         key: az-modules-${{ hashFiles('**/module-version.txt') }}
 
-    # 5️⃣ Install NuGet & PackageManagement manually and install Az
     - name: Install Az (CurrentUser scope only)
       if: steps.az-cache.outputs.cache-hit != 'true'
       shell: pwsh
@@ -64,7 +56,7 @@ jobs:
         Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $targetPath
         New-Item -ItemType Directory -Force -Path $targetPath | Out-Null
 
-        # Download & extract NuGet package (retry logic)
+        # Download and extract NuGet package
         for ($i = 1; $i -le 3; $i++) {
           try {
             Write-Host "Attempt ${i}: Downloading NuGet.nupkg..."
@@ -72,7 +64,6 @@ jobs:
             Add-Type -AssemblyName System.IO.Compression.FileSystem
             [System.IO.Compression.ZipFile]::ExtractToDirectory($nupkg, $targetPath)
 
-            # Fix nested folder if needed
             $nested = Join-Path $targetPath 'NuGet'
             if (Test-Path "$nested/NuGet.psd1") {
               Move-Item "$nested/*" $targetPath -Force
@@ -92,36 +83,39 @@ jobs:
 
         Remove-Item $nupkg -Force -ErrorAction SilentlyContinue
 
-        # 6️⃣ Manually install and import PackageManagement
+        # Explicitly save and import PackageManagement from a known path
         $pmVer = '1.4.8.1'
         $pmPath = "$env:HOME/.local/share/powershell/Modules"
         if (-not (Get-Module -ListAvailable -Name PackageManagement)) {
           Save-Module -Name PackageManagement -RequiredVersion $pmVer -Repository PSGallery -Path $pmPath -Force
         }
-        Import-Module PackageManagement -Force
 
-        # 7️⃣ Register NuGet provider manually
+        $pmModulePath = Join-Path "$pmPath/PackageManagement" "$pmVer/PackageManagement.psd1"
+        Write-Host "🔧 Importing PackageManagement from path: $pmModulePath"
+        Import-Module $pmModulePath -Force
+
+        # Register NuGet provider
         $nugetProviderPath = Join-Path $targetPath 'NuGet.psd1'
         Register-PackageProvider -Name NuGet -Manifest $nugetProviderPath -Force
+        Write-Host "✅ NuGet provider registered manually"
 
-        # 8️⃣ Ensure PSGallery is trusted
+        # Register PSGallery as trusted source
         if (-not (Get-PackageSource -Name PSGallery -ErrorAction SilentlyContinue)) {
           Register-PSRepository -Name PSGallery `
             -SourceLocation "https://www.powershellgallery.com/api/v2" `
             -InstallationPolicy Trusted -Force
         }
 
-        # 9️⃣ Finally install Az
+        # Install Az module locally
         Install-Module -Name Az -Scope CurrentUser -Repository PSGallery -Force -Confirm:$false
+        Write-Host "✅ Az module installed"
 
-    # 🔟 Verify Az import
     - name: Verify Az import
       shell: pwsh
       run: |
         Import-Module Az.Accounts
         Get-Module Az.* | Select-Object Name, Version | Sort-Object Name
 
-    # 1️⃣1️⃣ Smoke-test all Az modules
     - name: Smoke-test Az modules (no Pester)
       shell: pwsh
       env:
@@ -136,13 +130,12 @@ jobs:
           try {
             Import-Module $_.Name -Force -ErrorAction Stop
             Write-Host "✅ Imported $($_.Name)"
-          }
-          catch {
+          } catch {
             Write-Error "❌ Failed to import $($_.Name): $($_.Exception.Message)"
             $failures += $_.Name
           }
         }
 
         if ($failures.Count -gt 0) {
-          throw "One or more Az modules failed to import: $($failures -join ', ')"
+          throw "❌ One or more Az modules failed to import: $($failures -join ', ')"
         }
