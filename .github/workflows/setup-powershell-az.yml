@@ -9,6 +9,9 @@ jobs:
       matrix:
         runner_label:
           - rhel-laptop-default
+          # - rhel-laptop-default-gh01
+          # - rhel-laptop-default-gh02
+          # - rhel-laptop-default-gh03
 
     runs-on:
       - self-hosted
@@ -83,14 +86,26 @@ jobs:
 
         Remove-Item $nupkg -Force -ErrorAction SilentlyContinue
 
-        # Explicitly save and import PackageManagement from a known path
-        $pmVer = '1.4.8.1'
-        $pmPath = "$env:HOME/.local/share/powershell/Modules"
-        if (-not (Get-Module -ListAvailable -Name PackageManagement)) {
-          Save-Module -Name PackageManagement -RequiredVersion $pmVer -Repository PSGallery -Path $pmPath -Force
+        # Trust PSGallery
+        if (-not (Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue)) {
+          Register-PSRepository -Name PSGallery `
+            -SourceLocation "https://www.powershellgallery.com/api/v2" `
+            -InstallationPolicy Trusted -Force
         }
 
+        # Save PackageManagement manually
+        $pmVer = '1.4.8.1'
+        $pmPath = "$env:HOME/.local/share/powershell/Modules"
+        Save-Module -Name PackageManagement -RequiredVersion $pmVer -Repository PSGallery -Path $pmPath -Force
+
+        # Verify it actually saved correctly
         $pmModulePath = Join-Path "$pmPath/PackageManagement" "$pmVer/PackageManagement.psd1"
+        if (-Not (Test-Path $pmModulePath)) {
+          Write-Warning "❌ PackageManagement.psd1 not found at: $pmModulePath"
+          Get-ChildItem -Recurse -Path "$pmPath/PackageManagement" | Format-List
+          throw "❌ PackageManagement.psd1 missing after Save-Module. Check above for details."
+        }
+
         Write-Host "🔧 Importing PackageManagement from path: $pmModulePath"
         Import-Module $pmModulePath -Force
 
@@ -98,13 +113,6 @@ jobs:
         $nugetProviderPath = Join-Path $targetPath 'NuGet.psd1'
         Register-PackageProvider -Name NuGet -Manifest $nugetProviderPath -Force
         Write-Host "✅ NuGet provider registered manually"
-
-        # Register PSGallery as trusted source
-        if (-not (Get-PackageSource -Name PSGallery -ErrorAction SilentlyContinue)) {
-          Register-PSRepository -Name PSGallery `
-            -SourceLocation "https://www.powershellgallery.com/api/v2" `
-            -InstallationPolicy Trusted -Force
-        }
 
         # Install Az module locally
         Install-Module -Name Az -Scope CurrentUser -Repository PSGallery -Force -Confirm:$false
