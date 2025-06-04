@@ -83,12 +83,13 @@ jobs:
           $ErrorActionPreference = "Stop"
           Import-Module Pester -MinimumVersion 5.5.0 -Force
     
-          Invoke-Pester -Configuration @{ Run = @{ Exit = $true } } -ScriptBlock {
-            Describe "Az modules load" {
-              Get-Module -ListAvailable -Name Az.* | ForEach-Object {
-                It "$($_.Name) imports without error" {
-                  { Import-Module $_.Name -Force } | Should -Not -Throw
-                }
+        Invoke-Pester -Configuration @{ Run = @{ Exit = $true } } -ScriptBlock {
+          Describe "Az modules load" {
+            Get-Module -ListAvailable -Name Az.* | ForEach-Object {
+              It "$($_.Name) imports without error" {
+                { Import-Module $_.Name -Force } | Should -Not -Throw
               }
             }
           }
+        }
+        '@
