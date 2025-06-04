@@ -100,7 +100,8 @@ jobs:
         }
 
         # Import NuGet and install Az
-        Import-PackageProvider -Name NuGet -RequiredVersion 2.8.5.208 -Force
+        $nugetProviderPath = Join-Path $targetPath 'NuGet.psd1'
+        Register-PackageProvider -Name NuGet -Manifest $nugetProviderPath -Force
         Install-Module -Name Az -Scope CurrentUser -Repository PSGallery -Force -Confirm:$false
 
     # 6️⃣ Validate Az module is usable
