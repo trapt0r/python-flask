@@ -20,7 +20,7 @@ jobs:
     - name: Ensure local module dir exists
       run: mkdir -p "$LOCAL_PS_PATH"
 
-    - name: 🔍 Debug Confirm PackageManagement.psd1 exists
+    - name: 🔍 Debug: Confirm PackageManagement.psd1 exists
       shell: bash
       run: |
         echo "Looking for flattened and versioned PackageManagement..."
@@ -55,6 +55,13 @@ jobs:
 
         Write-Host "📦 Importing PackageManagement from: $pmImportPath"
         Import-Module $pmImportPath -Force
+
+        # 🔁 Also load the .psm1 directly if present to expose cmdlets
+        $pmPsm1 = Join-Path $pmImportPath "PackageManagement.psm1"
+        if (Test-Path $pmPsm1) {
+          Write-Host "🔄 Re-importing .psm1 to ensure cmdlets like Register-PackageProvider are exposed"
+          Import-Module $pmPsm1 -Force
+        }
 
         # 🧩 Register NuGet provider manually
         $nugetPath = Join-Path $env:LOCAL_PS_PATH "NuGet/2.8.5.208/NuGet.psd1"
