@@ -13,7 +13,6 @@ jobs:
 
     steps:
     - name: 🛠 Set LOCAL_PS_PATH with real $HOME
-      id: set-local-path
       shell: bash
       run: |
         echo "LOCAL_PS_PATH=$HOME/.local/share/powershell/Modules" >> $GITHUB_ENV
@@ -24,8 +23,8 @@ jobs:
     - name: 🔍 Debug Confirm PackageManagement.psd1 exists
       shell: bash
       run: |
-        echo "Checking: $LOCAL_PS_PATH/PackageManagement/1.4.8.1"
-        ls -l "$LOCAL_PS_PATH/PackageManagement/1.4.8.1" || echo "❌ Directory not found"
+        echo "Looking for flattened and versioned PackageManagement..."
+        find "$LOCAL_PS_PATH/PackageManagement" -name PackageManagement.psd1 || echo "❌ Not found"
 
     - name: Cache Az modules
       uses: actions/cache@v4
@@ -40,25 +39,33 @@ jobs:
       env:
         PSModulePath: "${{ env.LOCAL_PS_PATH }}:$env:PSModulePath"
       run: |
-        $pmImportPath = Join-Path $env:LOCAL_PS_PATH "PackageManagement/1.4.8.1"
-        $pmManifest   = Join-Path $pmImportPath "PackageManagement.psd1"
-        if (-not (Test-Path $pmManifest)) {
-          throw "❌ PackageManagement.psd1 not found at $pmManifest. Check that it's preloaded."
+        $ErrorActionPreference = 'Stop'
+
+        # 📁 Determine correct PackageManagement path (flat or versioned)
+        $flatPath = Join-Path $env:LOCAL_PS_PATH "PackageManagement"
+        $verPath  = Join-Path $env:LOCAL_PS_PATH "PackageManagement/1.4.8.1"
+
+        $pmImportPath = if (Test-Path "$flatPath/PackageManagement.psd1") {
+          $flatPath
+        } elseif (Test-Path "$verPath/PackageManagement.psd1") {
+          $verPath
+        } else {
+          throw "❌ PackageManagement.psd1 not found in flat or versioned layout."
         }
 
-        Write-Host "🔧 Importing PackageManagement from: $pmImportPath"
-        Import-Module $pmManifest -Force
+        Write-Host "📦 Importing PackageManagement from: $pmImportPath"
+        Import-Module $pmImportPath -Force
 
-        # 🧩 Register NuGet provider manually from disk
+        # 🧩 Register NuGet provider manually
         $nugetPath = Join-Path $env:LOCAL_PS_PATH "NuGet/2.8.5.208/NuGet.psd1"
         if (-not (Test-Path $nugetPath)) {
           throw "❌ NuGet.psd1 not found at $nugetPath"
         }
 
-        Write-Host "🧩 Registering NuGet provider from: $nugetPath"
+        Write-Host "✅ Registering NuGet provider from: $nugetPath"
         Register-PackageProvider -Name NuGet -Manifest $nugetPath -Force
 
-        # 🚀 Install Az after registering NuGet
+        # 🚀 Install Az module
         Write-Host "🚀 Installing Az module (CurrentUser)"
         Install-Module -Name Az -Scope CurrentUser -Repository PSGallery -Force -Confirm:$false
 
