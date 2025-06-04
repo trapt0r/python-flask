@@ -1,0 +1,38 @@
+name: Load Prebundled Az Modules
+
+on:
+  workflow_dispatch:
+
+jobs:
+  load-az:
+    strategy:
+      matrix:
+        runner: [ 'rhel-laptop-default', 'rhel-laptop-default-gh01', 'rhel-laptop-default-gh02', 'rhel-laptop-default-gh03' ]
+
+    runs-on: [self-hosted, "${{ matrix.runner }}"]
+
+    steps:
+    - name: Set LOCAL_PS_PATH using real $HOME
+      shell: bash
+      run: |
+        echo "LOCAL_PS_PATH=$HOME/.local/share/powershell/Modules" >> $GITHUB_ENV
+
+    - name: Ensure module directory exists
+      run: mkdir -p "$LOCAL_PS_PATH"
+
+    - name: Extract prebundled Az modules from /tmp
+      shell: bash
+      run: |
+        tar -xzf /tmp/az_modules.tar.gz -C "$LOCAL_PS_PATH"
+        echo "✅ Extracted Az modules:"
+        ls "$LOCAL_PS_PATH"
+
+    - name: Export PSModulePath
+      run: echo "PSModulePath=${LOCAL_PS_PATH}:$PSModulePath" >> $GITHUB_ENV
+
+    - name: Verify Az module import
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = "Stop"
+        Import-Module Az.Accounts
+        Get-Module Az.* | Select-Object Name, Version | Sort-Object Name
