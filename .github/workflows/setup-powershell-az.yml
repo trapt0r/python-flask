@@ -9,10 +9,10 @@ jobs:
     strategy:
       matrix:
         runner_label:
-          - rhel-laptop
-          - rhel-laptop-default-gh01
-          - rhel-laptop-default-gh02
-          - rhel-laptop-default-gh03
+          - rhel-laptop-default
+          # - rhel-laptop-default-gh01
+          # - rhel-laptop-default-gh02
+          # - rhel-laptop-default-gh03
 
     # ── 2 ️⃣  Block-style list here as well; safer than quoting expressions
     runs-on:
