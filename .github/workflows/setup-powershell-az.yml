@@ -8,9 +8,9 @@ jobs:
     # 4 known self-hosted Linux runners
     strategy:
       matrix:
-        runner: [rhel-laptop, rhel-laptop-default-gh01, rhel-laptop-default-gh02, rhel-laptop-default-gh03]
+        runner: [ 'rhel-laptop', 'rhel-laptop-default-gh01', 'rhel-laptop-default-gh02', 'rhel-laptop-default-gh03' ]
 
-    runs-on: [self-hosted, ${{ matrix.runner }}]
+    runs-on: ["self-hosted", "${{ matrix.runner }}"]
 
     # This is where we want the modules to live.
     # ${HOME}/.local/... is already on $PSModulePath when Scope=CurrentUser.
