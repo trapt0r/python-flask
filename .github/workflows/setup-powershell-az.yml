@@ -7,23 +7,23 @@ jobs:
   install-az:
     strategy:
       matrix:
-        runner: [ 'rhel-laptop-default']
+        runner: [ 'rhel-laptop-default' ]
 
     runs-on: [self-hosted, "${{ matrix.runner }}"]
 
     steps:
-    - name: 🛠 Set LOCAL_PS_PATH with real $HOME
+    - name: Set LOCAL_PS_PATH with real HOME
       shell: bash
       run: |
         echo "LOCAL_PS_PATH=$HOME/.local/share/powershell/Modules" >> $GITHUB_ENV
 
-    - name: Ensure local module dir exists
+    - name: Ensure local module directory exists
       run: mkdir -p "$LOCAL_PS_PATH"
 
-    - name: 🔍 Debug: Confirm PackageManagement.psd1 exists
+    - name: Debug check for PackageManagement.psd1
       shell: bash
       run: |
-        echo "Looking for flattened and versioned PackageManagement..."
+        echo "Looking for flattened and versioned PackageManagement.psd1..."
         find "$LOCAL_PS_PATH/PackageManagement" -name PackageManagement.psd1 || echo "❌ Not found"
 
     - name: Cache Az modules
@@ -41,7 +41,7 @@ jobs:
       run: |
         $ErrorActionPreference = 'Stop'
 
-        # 📁 Determine correct PackageManagement path (flat or versioned)
+        # Determine correct PackageManagement path
         $flatPath = Join-Path $env:LOCAL_PS_PATH "PackageManagement"
         $verPath  = Join-Path $env:LOCAL_PS_PATH "PackageManagement/1.4.8.1"
 
@@ -53,33 +53,34 @@ jobs:
           throw "❌ PackageManagement.psd1 not found in flat or versioned layout."
         }
 
-        Write-Host "📦 Importing PackageManagement from: $pmImportPath"
+        Write-Host "Importing PackageManagement from $pmImportPath"
         Import-Module $pmImportPath -Force
 
-        # 🔁 Also load the .psm1 directly if present to expose cmdlets
         $pmPsm1 = Join-Path $pmImportPath "PackageManagement.psm1"
         if (Test-Path $pmPsm1) {
-          Write-Host "🔄 Re-importing .psm1 to ensure cmdlets like Register-PackageProvider are exposed"
+          Write-Host "Re-importing .psm1 to ensure dynamic cmdlets are exposed"
           Import-Module $pmPsm1 -Force
         }
 
-        # 🧩 Register NuGet provider manually
-        $nugetPath = Join-Path $env:LOCAL_PS_PATH "NuGet/2.8.5.208/NuGet.psd1"
-        if (-not (Test-Path $nugetPath)) {
+        # Manually prepend NuGet provider path
+        $nugetPath = Join-Path $env:LOCAL_PS_PATH "NuGet/2.8.5.208"
+        if (-not (Test-Path "$nugetPath/NuGet.psd1")) {
           throw "❌ NuGet.psd1 not found at $nugetPath"
         }
 
-        Write-Host "✅ Registering NuGet provider from: $nugetPath"
-        Register-PackageProvider -Name NuGet -Manifest $nugetPath -Force
+        Write-Host "Prepending NuGet to PSModulePath"
+        $env:PSModulePath = "$nugetPath:$env:PSModulePath"
 
-        # 🚀 Install Az module
-        Write-Host "🚀 Installing Az module (CurrentUser)"
+        Write-Host "Listing available package providers for sanity check"
+        Get-PackageProvider | Format-Table Name, Version
+
+        Write-Host "Installing Az module using CurrentUser scope"
         Install-Module -Name Az -Scope CurrentUser -Repository PSGallery -Force -Confirm:$false
 
-    - name: Export PSModulePath
+    - name: Export PSModulePath to environment
       run: echo "PSModulePath=${LOCAL_PS_PATH}:$PSModulePath" >> $GITHUB_ENV
 
-    - name: Verify Az import
+    - name: Verify Az module import
       shell: pwsh
       run: |
         Import-Module Az.Accounts
