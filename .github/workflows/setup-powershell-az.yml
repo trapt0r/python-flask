@@ -7,10 +7,9 @@ jobs:
   install-az:
     strategy:
       matrix:
-        runner: [ 'rhel-laptop-default']
+        runner: [ 'rhel-laptop-default' ]
 
     runs-on: [self-hosted, "${{ matrix.runner }}"]
-
 
     env:
       LOCAL_PS_PATH: $HOME/.local/share/powershell/Modules
@@ -39,7 +38,7 @@ jobs:
         }
 
         Write-Host "🔧 Importing PackageManagement from: $pmImportPath"
-        Import-Module $pmImportPath -Force
+        Import-Module "$pmImportPath/PackageManagement.psd1" -Force
 
         Write-Host "🚀 Installing Az module (CurrentUser)"
         Install-Module -Name Az -Scope CurrentUser -Repository PSGallery -Force -Confirm:$false
