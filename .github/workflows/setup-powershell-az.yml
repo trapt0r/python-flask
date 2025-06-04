@@ -5,40 +5,47 @@ on:
 
 jobs:
   install-az:
-    # ── 1 ️⃣  Matrix list written in block-style to avoid flow-style quirks
     strategy:
       matrix:
         runner_label:
-          - rhel-laptop-default
+          - rhel-laptop
           - rhel-laptop-default-gh01
           - rhel-laptop-default-gh02
           - rhel-laptop-default-gh03
 
-    # ── 2 ️⃣  Block-style list here as well; safer than quoting expressions
     runs-on:
       - self-hosted
       - ${{ matrix.runner_label }}
 
     steps:
-    # ── 3 ️⃣  Resolve $HOME once, export LOCAL_PS_PATH and PSModulePath for the job
-    - name: Compute module path
+    # 1️⃣ Compute local install path and prepend it to PSModulePath
+    - name: Set PowerShell module path
       shell: bash
       run: |
         echo "LOCAL_PS_PATH=$HOME/.local/share/powershell/Modules" >> "$GITHUB_ENV"
         echo "PSModulePath=$HOME/.local/share/powershell/Modules:$PSModulePath" >> "$GITHUB_ENV"
 
+    # 2️⃣ Clean PackageManagement cache directory before PowerShell gets a chance to break on it
+    - name: Clean PackageManagement cache
+      shell: bash
+      run: rm -rf ~/.local/share/PackageManagement
+
+    # 3️⃣ Create module path if it doesn’t exist
     - name: Ensure local module dir exists
+      shell: bash
       run: mkdir -p "$LOCAL_PS_PATH"
 
-    # ── 4 ️⃣  Cache the Az modules so future runs are near-instant
+    # 4️⃣ Cache the Az modules and PackageManagement cache (optional, but recommended)
     - name: Cache Az modules
       uses: actions/cache@v4
       id: az-cache
       with:
-        path: ${{ env.LOCAL_PS_PATH }}
+        path: |
+          ${{ env.LOCAL_PS_PATH }}
+          ~/.local/share/PackageManagement
         key: az-modules-${{ hashFiles('**/module-version.txt') }}
 
-    # ── 5 ️⃣  Install only if cache missed; force TLS 1.2 so Gallery handshake works
+    # 5️⃣ Install Az if cache was missed
     - name: Install Az (CurrentUser scope only)
       if: steps.az-cache.outputs.cache-hit != 'true'
       shell: pwsh
@@ -52,29 +59,26 @@ jobs:
           Install-PackageProvider -Name NuGet -Scope CurrentUser -Force
         }
 
-        Install-Module PowerShellGet -Scope CurrentUser -Force -AllowClobber -Confirm:$false
         Install-Module Az -Scope CurrentUser -Repository PSGallery -Force -Confirm:$false
-        # ~200 MB first time; <1 MB once cached
 
-    # ── 6 ️⃣  Quick smoke test
+    # 6️⃣ Sanity check: ensure Az.Accounts at least imports cleanly
     - name: Verify Az import
       shell: pwsh
       run: |
         Import-Module Az.Accounts
-        Get-Module Az.* | Select-Object Name,Version | Sort-Object Name
-    # --------------------------------------------------------------------
-    # 🔍  Smoke-test: every Az module must import cleanly (no Azure login)
-    # --------------------------------------------------------------------
+        Get-Module Az.* | Select-Object Name, Version | Sort-Object Name
+
+    # 7️⃣ Smoke-test all Az modules (no Pester, minimal and dependency-free)
     - name: Smoke-test Az modules (no Pester)
       shell: pwsh
       env:
-        PSModulePath: ${{ env.PSModulePath }}   # ~/.local/share/powershell/Modules:…
+        PSModulePath: ${{ env.PSModulePath }}
       run: |
         $ErrorActionPreference = 'Stop'
         [Net.ServicePointManager]::SecurityProtocol = 'Tls12'
-    
+
         $failures = @()
-    
+
         Get-Module -ListAvailable -Name Az.* | ForEach-Object {
           try {
             Import-Module $_.Name -Force -ErrorAction Stop
@@ -85,7 +89,7 @@ jobs:
             $failures += $_.Name
           }
         }
-    
+
         if ($failures.Count -gt 0) {
           throw "One or more Az modules failed to import: $($failures -join ', ')"
         }
