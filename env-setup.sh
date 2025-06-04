@@ -7,6 +7,7 @@ mkdir -p "$BASE_DIR"
 declare -A MODULES=(
   ["PackageManagement"]="1.4.8.1"
   ["PowerShellGet"]="2.2.5"
+  ["NuGet"]="2.8.5.208"
 )
 
 for module in "${!MODULES[@]}"; do
