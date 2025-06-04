@@ -63,34 +63,30 @@ jobs:
         Import-Module Az.Accounts
         Get-Module Az.* | Select-Object Name,Version | Sort-Object Name
         
+    # --------------------------------------------------------------------
+    # 🔍  Smoke-test: every Az module must import cleanly (no Azure login)
+    # --------------------------------------------------------------------
     - name: Pester smoke-test Az modules import cleanly
       shell: pwsh
       env:
-        PSModulePath: ${{ env.PSModulePath }}   # already points to ~/.local/share/…
+        PSModulePath: ${{ env.PSModulePath }}   # points to ~/.local/share/…
       run: |
         $ErrorActionPreference = 'Stop'
         [Net.ServicePointManager]::SecurityProtocol = 'Tls12'
     
-        # -------------------------------------------------------------
-        # 1️⃣  Guarantee we have Pester ≥ 5.5 in the *current-user* path
-        # -------------------------------------------------------------
+        # 1️⃣ Ensure Pester ≥ 5.5 is available for the current user
         $reqVersion = [version]'5.5.0'
-        $pester = Get-Module -ListAvailable Pester | Sort-Object Version -Descending | Select-Object -First 1
-    
-        if (-not $pester -or $pester.Version -lt $reqVersion) {
-          Install-Module Pester -Scope CurrentUser `
-                               -MinimumVersion $reqVersion `
-                               -Force -SkipPublisherCheck -Confirm:$false
+        if (-not (Get-Module -ListAvailable Pester | Where-Object Version -ge $reqVersion)) {
+          Install-Module Pester -Scope CurrentUser -MinimumVersion $reqVersion `
+                                -Force -SkipPublisherCheck -Confirm:$false
         }
     
+        # 2️⃣ Unload any older Pester already in memory, then import 5.x explicitly
+        Remove-Module Pester -ErrorAction SilentlyContinue -Force -AllVersions
         Import-Module Pester -MinimumVersion $reqVersion -Force
     
-        # -------------------------------------------------------------
-        # 2️⃣  Run an inline smoke test – fails the step on any import error
-        # -------------------------------------------------------------
-        Invoke-Pester -Configuration @{
-          Run = @{ Exit = $true }        # fail the step if any 'It' fails
-        } -ScriptBlock {
+        # 3️⃣ Inline test: every Az.* module must import without throwing
+        Invoke-Pester -Configuration @{ Run = @{ Exit = $true } } -ScriptBlock {
           Describe 'Az modules load' {
             Get-Module -ListAvailable -Name Az.* | ForEach-Object {
               It "$($_.Name) imports without error" {
