@@ -18,24 +18,24 @@ jobs:
       - ${{ matrix.runner_label }}
 
     steps:
-    # 1️⃣ Set local PowerShell module path for user scope
+    # 1️⃣ Set local PowerShell module path
     - name: Set PowerShell module path
       shell: bash
       run: |
         echo "LOCAL_PS_PATH=$HOME/.local/share/powershell/Modules" >> "$GITHUB_ENV"
         echo "PSModulePath=$HOME/.local/share/powershell/Modules:$PSModulePath" >> "$GITHUB_ENV"
 
-    # 2️⃣ Clear PackageManagement cache in case of bad bootstrap state
+    # 2️⃣ Clean stale PackageManagement cache
     - name: Clean PackageManagement cache
       shell: bash
       run: rm -rf ~/.local/share/PackageManagement
 
-    # 3️⃣ Ensure local module directory exists
+    # 3️⃣ Ensure module directory exists
     - name: Ensure local module dir exists
       shell: bash
       run: mkdir -p "$LOCAL_PS_PATH"
 
-    # 4️⃣ Cache Az modules and NuGet provider
+    # 4️⃣ Cache Az modules + NuGet provider
     - name: Cache Az modules and NuGet
       uses: actions/cache@v4
       id: az-cache
@@ -46,7 +46,7 @@ jobs:
           ~/.local/share/powershell/Modules/NuGet
         key: az-modules-${{ hashFiles('**/module-version.txt') }}
 
-    # 5️⃣ Install Az modules with manually bootstrapped NuGet provider
+    # 5️⃣ Manually install NuGet provider and Az modules
     - name: Install Az (CurrentUser scope only)
       if: steps.az-cache.outputs.cache-hit != 'true'
       shell: pwsh
@@ -59,8 +59,9 @@ jobs:
         $nugetUrl = "https://www.powershellgallery.com/api/v2/package/NuGet/2.8.5.208"
         $targetPath = "$env:HOME/.local/share/powershell/Modules/NuGet"
 
-        # Pre-create module target folder
-        mkdir -Force -Path $targetPath | Out-Null
+        # Clean and recreate NuGet target directory
+        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $targetPath
+        New-Item -ItemType Directory -Force -Path $targetPath | Out-Null
 
         # Download and extract NuGet provider manually
         $nupkg = "$env:HOME/NuGet.2.8.5.208.nupkg"
@@ -76,20 +77,18 @@ jobs:
             -InstallationPolicy Trusted -Force
         }
 
-        # Import NuGet provider manually
+        # Import NuGet provider and install Az
         Import-PackageProvider -Name NuGet -RequiredVersion 2.8.5.208 -Force
-
-        # Install Az module (finally!)
         Install-Module -Name Az -Scope CurrentUser -Repository PSGallery -Force -Confirm:$false
 
-    # 6️⃣ Basic module import verification
+    # 6️⃣ Validate Az module import
     - name: Verify Az import
       shell: pwsh
       run: |
         Import-Module Az.Accounts
         Get-Module Az.* | Select-Object Name, Version | Sort-Object Name
 
-    # 7️⃣ Smoke test: ensure all Az modules import cleanly (no Pester)
+    # 7️⃣ Smoke test Az modules (no Pester)
     - name: Smoke-test Az modules (no Pester)
       shell: pwsh
       env:
