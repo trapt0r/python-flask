@@ -11,18 +11,21 @@ jobs:
 
     runs-on: [self-hosted, "${{ matrix.runner }}"]
 
-    env:
-      LOCAL_PS_PATH: $HOME/.local/share/powershell/Modules
-
     steps:
+    - name: 🛠 Set LOCAL_PS_PATH with real $HOME
+      id: set-local-path
+      shell: bash
+      run: |
+        echo "LOCAL_PS_PATH=$HOME/.local/share/powershell/Modules" >> $GITHUB_ENV
+
     - name: Ensure local module dir exists
       run: mkdir -p "$LOCAL_PS_PATH"
 
-    - name: 🔍 Confirm PackageManagement.psd1 exists
+    - name: 🔍 Debug: Confirm PackageManagement.psd1 exists
       shell: bash
       run: |
         echo "Looking for: $LOCAL_PS_PATH/PackageManagement/1.4.8.1"
-        ls -l $LOCAL_PS_PATH/PackageManagement/1.4.8.1 || echo "❌ Directory not found"
+        ls -l "$LOCAL_PS_PATH/PackageManagement/1.4.8.1" || echo "❌ Directory not found"
 
     - name: Cache Az modules
       uses: actions/cache@v4
