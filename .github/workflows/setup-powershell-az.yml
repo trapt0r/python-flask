@@ -62,34 +62,30 @@ jobs:
       run: |
         Import-Module Az.Accounts
         Get-Module Az.* | Select-Object Name,Version | Sort-Object Name
-    - name: Pester smoke-test Az modules import cleanly
+    # --------------------------------------------------------------------
+    # 🔍  Smoke-test: every Az module must import cleanly (no Azure login)
+    # --------------------------------------------------------------------
+    - name: Smoke-test Az modules (no Pester)
       shell: pwsh
       env:
-        PSModulePath: ${{ env.PSModulePath }}     # ~/.local/share/powershell/Modules:…
+        PSModulePath: ${{ env.PSModulePath }}   # ~/.local/share/powershell/Modules:…
       run: |
         $ErrorActionPreference = 'Stop'
         [Net.ServicePointManager]::SecurityProtocol = 'Tls12'
     
-        # 1️⃣  Make sure Pester ≥ 5.5 is present in *current-user* scope
-        $reqVersion = [version]'5.5.0'
-        if (-not (Get-Module -ListAvailable -Name Pester | Where-Object Version -ge $reqVersion)) {
-          Install-Module Pester -Scope CurrentUser -MinimumVersion $reqVersion `
-                                -Force -SkipPublisherCheck -Confirm:$false
-        }
+        $failures = @()
     
-        # 2️⃣  Launch a brand-new PowerShell process that will discover the
-        #     just-installed Pester first (nothing old is loaded yet).
-        pwsh -NoLogo -NoProfile -NonInteractive -Command @'
-          $ErrorActionPreference = "Stop"
-          Import-Module Pester -MinimumVersion 5.5.0 -Force
-    
-        Invoke-Pester -Configuration @{ Run = @{ Exit = $true } } -ScriptBlock {
-          Describe "Az modules load" {
-            Get-Module -ListAvailable -Name Az.* | ForEach-Object {
-              It "$($_.Name) imports without error" {
-                { Import-Module $_.Name -Force } | Should -Not -Throw
-              }
-            }
+        Get-Module -ListAvailable -Name Az.* | ForEach-Object {
+          try {
+            Import-Module $_.Name -Force -ErrorAction Stop
+            Write-Host "✅ Imported $($_.Name)"
+          }
+          catch {
+            Write-Error "❌ Failed to import $($_.Name): $($_.Exception.Message)"
+            $failures += $_.Name
           }
         }
-        '@
+    
+        if ($failures.Count -gt 0) {
+          throw "One or more Az modules failed to import: $($failures -join ', ')"
+        }
