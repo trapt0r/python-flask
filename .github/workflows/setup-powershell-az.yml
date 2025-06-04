@@ -18,24 +18,24 @@ jobs:
       - ${{ matrix.runner_label }}
 
     steps:
-    # 1️⃣ Set up local module path and prepend to PSModulePath
+    # 1️⃣ Set module path
     - name: Set PowerShell module path
       shell: bash
       run: |
         echo "LOCAL_PS_PATH=$HOME/.local/share/powershell/Modules" >> "$GITHUB_ENV"
         echo "PSModulePath=$HOME/.local/share/powershell/Modules:$PSModulePath" >> "$GITHUB_ENV"
 
-    # 2️⃣ Clean any corrupt PackageManagement folder (avoids dynamic type crashes)
+    # 2️⃣ Clean old PackageManagement cache
     - name: Clean PackageManagement cache
       shell: bash
       run: rm -rf ~/.local/share/PackageManagement
 
-    # 3️⃣ Ensure local module dir exists
+    # 3️⃣ Create module path if needed
     - name: Ensure local module dir exists
       shell: bash
       run: mkdir -p "$LOCAL_PS_PATH"
 
-    # 4️⃣ Cache Az modules and PackageManagement state
+    # 4️⃣ Cache Az and dependency modules
     - name: Cache Az modules
       uses: actions/cache@v4
       id: az-cache
@@ -45,7 +45,7 @@ jobs:
           ~/.local/share/PackageManagement
         key: az-modules-${{ hashFiles('**/module-version.txt') }}
 
-    # 5️⃣ Install Az + bootstrap PowerShellGet and PackageManagement manually
+    # 5️⃣ Install Az + dependencies (PowerShellGet, PackageManagement, NuGet)
     - name: Install Az (CurrentUser scope only)
       if: steps.az-cache.outputs.cache-hit != 'true'
       shell: pwsh
@@ -55,45 +55,43 @@ jobs:
         $ErrorActionPreference = 'Stop'
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-        $base = "$env:HOME/.local/share/powershell/Modules"
-        $pgver = [version]'2.2.5'
-        $pmver = [version]'1.4.8.1'
+        # Versions you trust
+        $pgver = '2.2.5'
+        $pmver = '1.4.8.1'
 
-        # Download PowerShellGet and PackageManagement manually if missing
-        if (-not (Get-Module -ListAvailable -Name PackageManagement)) {
-          Save-Module -Name PackageManagement -RequiredVersion $pmver -Repository PSGallery -Path $base -Force
-        }
+        # Install PackageManagement & PowerShellGet cleanly
+        Write-Host "🔧 Installing PackageManagement $pmver..."
+        Install-Module PackageManagement -RequiredVersion $pmver -Scope CurrentUser -Force -Confirm:$false
 
-        if (-not (Get-Module -ListAvailable -Name PowerShellGet)) {
-          Save-Module -Name PowerShellGet -RequiredVersion $pgver -Repository PSGallery -Path $base -Force
-        }
+        Write-Host "🔧 Installing PowerShellGet $pgver..."
+        Install-Module PowerShellGet -RequiredVersion $pgver -Scope CurrentUser -Force -Confirm:$false
 
-        Import-Module "$base/PackageManagement/$pmver/PackageManagement.psd1" -Force
-        Import-Module "$base/PowerShellGet/$pgver/PowerShellGet.psd1" -Force
+        Import-Module PackageManagement -Force
+        Import-Module PowerShellGet -Force
 
-        # Register PSGallery if needed
+        # Register PSGallery if missing
         if (-not (Get-PackageSource -Name PSGallery -ErrorAction SilentlyContinue)) {
           Register-PSRepository -Name PSGallery `
             -SourceLocation "https://www.powershellgallery.com/api/v2" `
             -InstallationPolicy Trusted -Force
         }
 
-        # Install NuGet provider safely
+        # Install NuGet provider
         if (-not (Get-PackageProvider -Name NuGet -ErrorAction SilentlyContinue)) {
           Install-PackageProvider -Name NuGet -Scope CurrentUser -Force
         }
 
-        # Now install Az
+        # Finally, install Az
         Install-Module -Name Az -Scope CurrentUser -Repository PSGallery -Force -Confirm:$false
 
-    # 6️⃣ Sanity check that Az.Accounts loads
+    # 6️⃣ Sanity check for Az
     - name: Verify Az import
       shell: pwsh
       run: |
         Import-Module Az.Accounts
         Get-Module Az.* | Select-Object Name, Version | Sort-Object Name
 
-    # 7️⃣ Minimal smoke-test for all Az modules
+    # 7️⃣ Smoke test each Az module
     - name: Smoke-test Az modules (no Pester)
       shell: pwsh
       env:
