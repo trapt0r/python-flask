@@ -82,7 +82,7 @@ jobs:
         }
     
         # 2️⃣ Unload any older Pester already in memory, then import 5.x explicitly
-        Remove-Module Pester -ErrorAction SilentlyContinue -Force -AllVersions
+        Remove-Module Pester -ErrorAction SilentlyContinue -Force
         Import-Module Pester -MinimumVersion $reqVersion -Force
     
         # 3️⃣ Inline test: every Az.* module must import without throwing
