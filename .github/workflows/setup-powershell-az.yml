@@ -7,7 +7,7 @@ jobs:
   install-az:
     strategy:
       matrix:
-        runner: [ 'rhel-laptop-default' ]
+        runner: [ 'rhel-laptop-default']
 
     runs-on: [self-hosted, "${{ matrix.runner }}"]
 
@@ -21,10 +21,10 @@ jobs:
     - name: Ensure local module dir exists
       run: mkdir -p "$LOCAL_PS_PATH"
 
-    - name: 🔍 Debug Confirm PackageManagement.psd1 exists
+    - name: 🔍 Debug: Confirm PackageManagement.psd1 exists
       shell: bash
       run: |
-        echo "Looking for: $LOCAL_PS_PATH/PackageManagement/1.4.8.1"
+        echo "Checking: $LOCAL_PS_PATH/PackageManagement/1.4.8.1"
         ls -l "$LOCAL_PS_PATH/PackageManagement/1.4.8.1" || echo "❌ Directory not found"
 
     - name: Cache Az modules
@@ -34,7 +34,7 @@ jobs:
         path: ${{ env.LOCAL_PS_PATH }}
         key: az-modules-${{ hashFiles('**/module-version.txt') }}
 
-    - name: Import PackageManagement and install Az
+    - name: Import modules and install Az
       if: steps.az-cache.outputs.cache-hit != 'true'
       shell: pwsh
       env:
@@ -42,7 +42,6 @@ jobs:
       run: |
         $pmImportPath = Join-Path $env:LOCAL_PS_PATH "PackageManagement/1.4.8.1"
         $pmManifest   = Join-Path $pmImportPath "PackageManagement.psd1"
-
         if (-not (Test-Path $pmManifest)) {
           throw "❌ PackageManagement.psd1 not found at $pmManifest. Check that it's preloaded."
         }
@@ -50,6 +49,16 @@ jobs:
         Write-Host "🔧 Importing PackageManagement from: $pmImportPath"
         Import-Module $pmManifest -Force
 
+        # 🧩 Register NuGet provider manually from disk
+        $nugetPath = Join-Path $env:LOCAL_PS_PATH "NuGet/2.8.5.208/NuGet.psd1"
+        if (-not (Test-Path $nugetPath)) {
+          throw "❌ NuGet.psd1 not found at $nugetPath"
+        }
+
+        Write-Host "🧩 Registering NuGet provider from: $nugetPath"
+        Register-PackageProvider -Name NuGet -Manifest $nugetPath -Force
+
+        # 🚀 Install Az after registering NuGet
         Write-Host "🚀 Installing Az module (CurrentUser)"
         Install-Module -Name Az -Scope CurrentUser -Repository PSGallery -Force -Confirm:$false
 
