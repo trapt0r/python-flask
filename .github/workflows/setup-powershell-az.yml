@@ -62,42 +62,33 @@ jobs:
       run: |
         Import-Module Az.Accounts
         Get-Module Az.* | Select-Object Name,Version | Sort-Object Name
-        
-    # --------------------------------------------------------------------
-    # 🔍  Smoke-test: every Az module must import cleanly (no Azure login)
-    # --------------------------------------------------------------------
-# --------------------------------------------------------------------
-# 🔍  Smoke-test: every Az module must import cleanly (no Azure login)
-# --------------------------------------------------------------------
-      - name: Pester smoke-test Az modules import cleanly
-        shell: pwsh
-        env:
-          PSModulePath: ${{ env.PSModulePath }}     # ~/.local/share/powershell/Modules:…
-        run: |
-          $ErrorActionPreference = 'Stop'
-          [Net.ServicePointManager]::SecurityProtocol = 'Tls12'
-      
-          # 1️⃣  Make sure Pester ≥ 5.5 is present in *current-user* scope
-          $reqVersion = [version]'5.5.0'
-          if (-not (Get-Module -ListAvailable -Name Pester | Where-Object Version -ge $reqVersion)) {
-            Install-Module Pester -Scope CurrentUser -MinimumVersion $reqVersion `
-                                  -Force -SkipPublisherCheck -Confirm:$false
-          }
-      
-          # 2️⃣  Launch a brand-new PowerShell process that will discover the
-          #     just-installed Pester first (nothing old is loaded yet).
-          pwsh -NoLogo -NoProfile -NonInteractive -Command @'
-            $ErrorActionPreference = "Stop"
-            Import-Module Pester -MinimumVersion 5.5.0 -Force
-      
-            Invoke-Pester -Configuration @{ Run = @{ Exit = $true } } -ScriptBlock {
-              Describe "Az modules load" {
-                Get-Module -ListAvailable -Name Az.* | ForEach-Object {
-                  It "$($_.Name) imports without error" {
-                    { Import-Module $_.Name -Force } | Should -Not -Throw
-                  }
+    - name: Pester smoke-test Az modules import cleanly
+      shell: pwsh
+      env:
+        PSModulePath: ${{ env.PSModulePath }}     # ~/.local/share/powershell/Modules:…
+      run: |
+        $ErrorActionPreference = 'Stop'
+        [Net.ServicePointManager]::SecurityProtocol = 'Tls12'
+    
+        # 1️⃣  Make sure Pester ≥ 5.5 is present in *current-user* scope
+        $reqVersion = [version]'5.5.0'
+        if (-not (Get-Module -ListAvailable -Name Pester | Where-Object Version -ge $reqVersion)) {
+          Install-Module Pester -Scope CurrentUser -MinimumVersion $reqVersion `
+                                -Force -SkipPublisherCheck -Confirm:$false
+        }
+    
+        # 2️⃣  Launch a brand-new PowerShell process that will discover the
+        #     just-installed Pester first (nothing old is loaded yet).
+        pwsh -NoLogo -NoProfile -NonInteractive -Command @'
+          $ErrorActionPreference = "Stop"
+          Import-Module Pester -MinimumVersion 5.5.0 -Force
+    
+          Invoke-Pester -Configuration @{ Run = @{ Exit = $true } } -ScriptBlock {
+            Describe "Az modules load" {
+              Get-Module -ListAvailable -Name Az.* | ForEach-Object {
+                It "$($_.Name) imports without error" {
+                  { Import-Module $_.Name -Force } | Should -Not -Throw
                 }
               }
             }
-      '@
-
+          }
