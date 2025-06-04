@@ -9,16 +9,16 @@ jobs:
       matrix:
         runner_label:
           - rhel-laptop-default
-          # - rhel-laptop-default-gh01
-          # - rhel-laptop-default-gh02
-          # - rhel-laptop-default-gh03
+          - rhel-laptop-default-gh01
+          - rhel-laptop-default-gh02
+          - rhel-laptop-default-gh03
 
     runs-on:
       - self-hosted
       - ${{ matrix.runner_label }}
 
     steps:
-    # 1️⃣ Set PowerShell user module path
+    # 1️⃣ Set local PowerShell module path
     - name: Set PowerShell module path
       shell: bash
       run: |
@@ -30,13 +30,13 @@ jobs:
       shell: bash
       run: rm -rf ~/.local/share/PackageManagement
 
-    # 3️⃣ Ensure local module directory exists
+    # 3️⃣ Ensure local module dir exists
     - name: Ensure local module dir exists
       shell: bash
       run: mkdir -p "$LOCAL_PS_PATH"
 
-    # 4️⃣ Cache Az modules + NuGet
-    - name: Cache Az modules and NuGet
+    # 4️⃣ Cache Az modules + NuGet + PackageManagement
+    - name: Cache Az modules and provider bootstraps
       uses: actions/cache@v4
       id: az-cache
       with:
@@ -46,7 +46,7 @@ jobs:
           ~/.local/share/powershell/Modules/NuGet
         key: az-modules-${{ hashFiles('**/module-version.txt') }}
 
-    # 5️⃣ Install NuGet provider manually and install Az
+    # 5️⃣ Install NuGet & PackageManagement manually and install Az
     - name: Install Az (CurrentUser scope only)
       if: steps.az-cache.outputs.cache-hit != 'true'
       shell: pwsh
@@ -60,11 +60,11 @@ jobs:
         $targetPath = "$env:HOME/.local/share/powershell/Modules/NuGet"
         $nupkg = "$env:HOME/NuGet.2.8.5.208.nupkg"
 
-        # Clean up existing NuGet directory
+        # Clean and prep NuGet path
         Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $targetPath
         New-Item -ItemType Directory -Force -Path $targetPath | Out-Null
 
-        # Download and extract NuGet nupkg (retry up to 3x)
+        # Download & extract NuGet package (retry logic)
         for ($i = 1; $i -le 3; $i++) {
           try {
             Write-Host "Attempt ${i}: Downloading NuGet.nupkg..."
@@ -72,7 +72,7 @@ jobs:
             Add-Type -AssemblyName System.IO.Compression.FileSystem
             [System.IO.Compression.ZipFile]::ExtractToDirectory($nupkg, $targetPath)
 
-            # Fix nested extraction: move inner contents up if needed
+            # Fix nested folder if needed
             $nested = Join-Path $targetPath 'NuGet'
             if (Test-Path "$nested/NuGet.psd1") {
               Move-Item "$nested/*" $targetPath -Force
@@ -82,7 +82,7 @@ jobs:
             Write-Host "✅ Extracted and verified NuGet.psd1"
             break
           } catch {
-            Write-Warning "⚠️  Attempt $i failed: $($_.Exception.Message)"
+            Write-Warning "⚠️ Attempt ${i} failed: $($_.Exception.Message)"
             if ($i -eq 3) {
               throw "❌ Failed to download and extract NuGet package after 3 attempts."
             }
@@ -92,26 +92,36 @@ jobs:
 
         Remove-Item $nupkg -Force -ErrorAction SilentlyContinue
 
-        # Register PSGallery if needed
+        # 6️⃣ Manually install and import PackageManagement
+        $pmVer = '1.4.8.1'
+        $pmPath = "$env:HOME/.local/share/powershell/Modules"
+        if (-not (Get-Module -ListAvailable -Name PackageManagement)) {
+          Save-Module -Name PackageManagement -RequiredVersion $pmVer -Repository PSGallery -Path $pmPath -Force
+        }
+        Import-Module PackageManagement -Force
+
+        # 7️⃣ Register NuGet provider manually
+        $nugetProviderPath = Join-Path $targetPath 'NuGet.psd1'
+        Register-PackageProvider -Name NuGet -Manifest $nugetProviderPath -Force
+
+        # 8️⃣ Ensure PSGallery is trusted
         if (-not (Get-PackageSource -Name PSGallery -ErrorAction SilentlyContinue)) {
           Register-PSRepository -Name PSGallery `
             -SourceLocation "https://www.powershellgallery.com/api/v2" `
             -InstallationPolicy Trusted -Force
         }
 
-        # Import NuGet and install Az
-        $nugetProviderPath = Join-Path $targetPath 'NuGet.psd1'
-        Register-PackageProvider -Name NuGet -Manifest $nugetProviderPath -Force
+        # 9️⃣ Finally install Az
         Install-Module -Name Az -Scope CurrentUser -Repository PSGallery -Force -Confirm:$false
 
-    # 6️⃣ Validate Az module is usable
+    # 🔟 Verify Az import
     - name: Verify Az import
       shell: pwsh
       run: |
         Import-Module Az.Accounts
         Get-Module Az.* | Select-Object Name, Version | Sort-Object Name
 
-    # 7️⃣ Smoke-test all Az modules
+    # 1️⃣1️⃣ Smoke-test all Az modules
     - name: Smoke-test Az modules (no Pester)
       shell: pwsh
       env:
