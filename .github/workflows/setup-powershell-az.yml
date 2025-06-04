@@ -18,6 +18,12 @@ jobs:
     - name: Ensure local module dir exists
       run: mkdir -p "$LOCAL_PS_PATH"
 
+    - name: 🔍 Debug: Confirm PackageManagement.psd1 exists
+      shell: bash
+      run: |
+        echo "Looking for: $LOCAL_PS_PATH/PackageManagement/1.4.8.1"
+        ls -l $LOCAL_PS_PATH/PackageManagement/1.4.8.1 || echo "❌ Directory not found"
+
     - name: Cache Az modules
       uses: actions/cache@v4
       id: az-cache
@@ -25,20 +31,21 @@ jobs:
         path: ${{ env.LOCAL_PS_PATH }}
         key: az-modules-${{ hashFiles('**/module-version.txt') }}
 
-    - name: Import local PackageManagement module and install Az
+    - name: Import PackageManagement and install Az
       if: steps.az-cache.outputs.cache-hit != 'true'
       shell: pwsh
       env:
         PSModulePath: "${{ env.LOCAL_PS_PATH }}:$env:PSModulePath"
       run: |
-        $pmImportPath = "$env:LOCAL_PS_PATH/PackageManagement/1.4.8.1"
+        $pmImportPath = Join-Path $env:LOCAL_PS_PATH "PackageManagement/1.4.8.1"
+        $pmManifest   = Join-Path $pmImportPath "PackageManagement.psd1"
 
-        if (-not (Test-Path "$pmImportPath/PackageManagement.psd1")) {
-          throw "❌ PackageManagement not preloaded. Please run the manual setup on this runner."
+        if (-not (Test-Path $pmManifest)) {
+          throw "❌ PackageManagement.psd1 not found at $pmManifest. Check that it's preloaded."
         }
 
         Write-Host "🔧 Importing PackageManagement from: $pmImportPath"
-        Import-Module "$pmImportPath/PackageManagement.psd1" -Force
+        Import-Module $pmManifest -Force
 
         Write-Host "🚀 Installing Az module (CurrentUser)"
         Install-Module -Name Az -Scope CurrentUser -Repository PSGallery -Force -Confirm:$false
