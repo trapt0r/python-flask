@@ -5,24 +5,32 @@ on:
 
 jobs:
   install-az:
-    # 4 known self-hosted Linux runners
+    # ── 1 ️⃣  Matrix list written in block-style to avoid flow-style quirks
     strategy:
       matrix:
-        runner: [ 'rhel-laptop', 'rhel-laptop-default-gh01', 'rhel-laptop-default-gh02', 'rhel-laptop-default-gh03' ]
+        runner_label:
+          - rhel-laptop
+          - rhel-laptop-default-gh01
+          - rhel-laptop-default-gh02
+          - rhel-laptop-default-gh03
 
-    runs-on: ["self-hosted", "${{ matrix.runner }}"]
-
-    # This is where we want the modules to live.
-    # ${HOME}/.local/... is already on $PSModulePath when Scope=CurrentUser.
-    env:
-      LOCAL_PS_PATH: ~/.local/share/powershell/Modules   # tilde expands at runtime
-
+    # ── 2 ️⃣  Block-style list here as well; safer than quoting expressions
+    runs-on:
+      - self-hosted
+      - ${{ matrix.runner_label }}
 
     steps:
+    # ── 3 ️⃣  Resolve $HOME once, export LOCAL_PS_PATH and PSModulePath for the job
+    - name: Compute module path
+      shell: bash
+      run: |
+        echo "LOCAL_PS_PATH=$HOME/.local/share/powershell/Modules" >> "$GITHUB_ENV"
+        echo "PSModulePath=$HOME/.local/share/powershell/Modules:$PSModulePath" >> "$GITHUB_ENV"
+
     - name: Ensure local module dir exists
       run: mkdir -p "$LOCAL_PS_PATH"
 
-    # Optional – speeds up future runs by caching the directory
+    # ── 4 ️⃣  Cache the Az modules so future runs are near-instant
     - name: Cache Az modules
       uses: actions/cache@v4
       id: az-cache
@@ -30,25 +38,27 @@ jobs:
         path: ${{ env.LOCAL_PS_PATH }}
         key: az-modules-${{ hashFiles('**/module-version.txt') }}
 
+    # ── 5 ️⃣  Install only if cache missed; force TLS 1.2 so Gallery handshake works
     - name: Install Az (CurrentUser scope only)
       if: steps.az-cache.outputs.cache-hit != 'true'
       shell: pwsh
       env:
-        # Pre-pend our directory for this session; keeps things hermetic.
-        PSModulePath: "${{ env.LOCAL_PS_PATH }}:$env:PSModulePath"
+        PSModulePath: ${{ env.PSModulePath }}
       run: |
-        Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force
-        Install-Module -Name Az -Scope CurrentUser -Repository PSGallery -Force -Confirm:$false
-        # (Az pulls in ~60 sub-modules; expect ~200 MB on first run.)
+        $ErrorActionPreference = 'Stop'
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-    # Make the path available to *every* later step in this job
-    - name: Export PSModulePath
-      run: |
-        echo "PSModulePath=${LOCAL_PS_PATH}:$PSModulePath" >> $GITHUB_ENV
+        if (-not (Get-PackageProvider -Name NuGet -ErrorAction SilentlyContinue)) {
+          Install-PackageProvider -Name NuGet -Scope CurrentUser -Force
+        }
 
-    # Sanity check (optional)
+        Install-Module PowerShellGet -Scope CurrentUser -Force -AllowClobber -Confirm:$false
+        Install-Module Az -Scope CurrentUser -Repository PSGallery -Force -Confirm:$false
+        # ~200 MB first time; <1 MB once cached
+
+    # ── 6 ️⃣  Quick smoke test
     - name: Verify Az import
       shell: pwsh
       run: |
         Import-Module Az.Accounts
-        Get-Module Az.* | Select-Object Name, Version | Sort-Object Name
+        Get-Module Az.* | Select-Object Name,Version | Sort-Object Name
