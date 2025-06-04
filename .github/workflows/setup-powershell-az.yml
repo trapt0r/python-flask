@@ -18,24 +18,24 @@ jobs:
       - ${{ matrix.runner_label }}
 
     steps:
-    # 1️⃣ Set local PowerShell module path
+    # 1️⃣ Set PowerShell user module path
     - name: Set PowerShell module path
       shell: bash
       run: |
         echo "LOCAL_PS_PATH=$HOME/.local/share/powershell/Modules" >> "$GITHUB_ENV"
         echo "PSModulePath=$HOME/.local/share/powershell/Modules:$PSModulePath" >> "$GITHUB_ENV"
 
-    # 2️⃣ Clean stale PackageManagement cache
+    # 2️⃣ Clean PackageManagement cache
     - name: Clean PackageManagement cache
       shell: bash
       run: rm -rf ~/.local/share/PackageManagement
 
-    # 3️⃣ Ensure module directory exists
+    # 3️⃣ Ensure local module directory exists
     - name: Ensure local module dir exists
       shell: bash
       run: mkdir -p "$LOCAL_PS_PATH"
 
-    # 4️⃣ Cache Az modules + NuGet provider
+    # 4️⃣ Cache Az modules + NuGet
     - name: Cache Az modules and NuGet
       uses: actions/cache@v4
       id: az-cache
@@ -46,7 +46,7 @@ jobs:
           ~/.local/share/powershell/Modules/NuGet
         key: az-modules-${{ hashFiles('**/module-version.txt') }}
 
-    # 5️⃣ Manually install NuGet provider and Az modules
+    # 5️⃣ Install NuGet provider manually and install Az
     - name: Install Az (CurrentUser scope only)
       if: steps.az-cache.outputs.cache-hit != 'true'
       shell: pwsh
@@ -58,17 +58,39 @@ jobs:
 
         $nugetUrl = "https://www.powershellgallery.com/api/v2/package/NuGet/2.8.5.208"
         $targetPath = "$env:HOME/.local/share/powershell/Modules/NuGet"
+        $nupkg = "$env:HOME/NuGet.2.8.5.208.nupkg"
 
-        # Clean and recreate NuGet target directory
+        # Clean up existing NuGet directory
         Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $targetPath
         New-Item -ItemType Directory -Force -Path $targetPath | Out-Null
 
-        # Download and extract NuGet provider manually
-        $nupkg = "$env:HOME/NuGet.2.8.5.208.nupkg"
-        Invoke-WebRequest -Uri $nugetUrl -OutFile $nupkg
-        Add-Type -AssemblyName System.IO.Compression.FileSystem
-        [System.IO.Compression.ZipFile]::ExtractToDirectory($nupkg, $targetPath)
-        Remove-Item $nupkg
+        # Download and extract NuGet nupkg (retry up to 3x)
+        for ($i = 1; $i -le 3; $i++) {
+          try {
+            Write-Host "Attempt $i: Downloading NuGet.nupkg..."
+            Invoke-WebRequest -Uri $nugetUrl -OutFile $nupkg -UseBasicParsing
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            [System.IO.Compression.ZipFile]::ExtractToDirectory($nupkg, $targetPath)
+
+            # Fix nested extraction: move inner contents up if needed
+            $nested = Join-Path $targetPath 'NuGet'
+            if (Test-Path "$nested/NuGet.psd1") {
+              Move-Item "$nested/*" $targetPath -Force
+              Remove-Item $nested -Recurse -Force
+            }
+
+            Write-Host "✅ Extracted and verified NuGet.psd1"
+            break
+          } catch {
+            Write-Warning "⚠️  Attempt $i failed: $($_.Exception.Message)"
+            if ($i -eq 3) {
+              throw "❌ Failed to download and extract NuGet package after 3 attempts."
+            }
+            Start-Sleep -Seconds 2
+          }
+        }
+
+        Remove-Item $nupkg -Force -ErrorAction SilentlyContinue
 
         # Register PSGallery if needed
         if (-not (Get-PackageSource -Name PSGallery -ErrorAction SilentlyContinue)) {
@@ -77,18 +99,18 @@ jobs:
             -InstallationPolicy Trusted -Force
         }
 
-        # Import NuGet provider and install Az
+        # Import NuGet and install Az
         Import-PackageProvider -Name NuGet -RequiredVersion 2.8.5.208 -Force
         Install-Module -Name Az -Scope CurrentUser -Repository PSGallery -Force -Confirm:$false
 
-    # 6️⃣ Validate Az module import
+    # 6️⃣ Validate Az module is usable
     - name: Verify Az import
       shell: pwsh
       run: |
         Import-Module Az.Accounts
         Get-Module Az.* | Select-Object Name, Version | Sort-Object Name
 
-    # 7️⃣ Smoke test Az modules (no Pester)
+    # 7️⃣ Smoke-test all Az modules
     - name: Smoke-test Az modules (no Pester)
       shell: pwsh
       env:
