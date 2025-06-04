@@ -54,12 +54,19 @@ jobs:
       run: |
         $ErrorActionPreference = 'Stop'
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-
-        if (-not (Get-PackageProvider -Name NuGet -ErrorAction SilentlyContinue)) {
-          Install-PackageProvider -Name NuGet -Scope CurrentUser -Force
+    
+        # Ensure NuGet provider is explicitly installed as a module
+        if (-not (Get-PackageSource -Name PSGallery -ErrorAction SilentlyContinue)) {
+          Register-PackageSource -Name PSGallery -ProviderName PowerShellGet -Location https://www.powershellgallery.com/api/v2 -Trusted -Force
         }
+    
+        if (-not (Get-PackageProvider -Name NuGet -ErrorAction SilentlyContinue)) {
+          Install-Module -Name NuGet -Scope CurrentUser -Force -AllowClobber -Repository PSGallery
+        }
+    
+        # Now install Az safely
+        Install-Module -Name Az -Scope CurrentUser -Repository PSGallery -Force -Confirm:$false
 
-        Install-Module Az -Scope CurrentUser -Repository PSGallery -Force -Confirm:$false
 
     # 6️⃣ Sanity check: ensure Az.Accounts at least imports cleanly
     - name: Verify Az import
