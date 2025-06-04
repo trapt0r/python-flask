@@ -67,7 +67,7 @@ jobs:
         # Download and extract NuGet nupkg (retry up to 3x)
         for ($i = 1; $i -le 3; $i++) {
           try {
-            Write-Host "Attempt $i: Downloading NuGet.nupkg..."
+            Write-Host "Attempt ${i}: Downloading NuGet.nupkg..."
             Invoke-WebRequest -Uri $nugetUrl -OutFile $nupkg -UseBasicParsing
             Add-Type -AssemblyName System.IO.Compression.FileSystem
             [System.IO.Compression.ZipFile]::ExtractToDirectory($nupkg, $targetPath)
