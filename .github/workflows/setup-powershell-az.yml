@@ -9,9 +9,9 @@ jobs:
       matrix:
         runner_label:
           - rhel-laptop-default
-          # - rhel-laptop-default-gh01
-          # - rhel-laptop-default-gh02
-          # - rhel-laptop-default-gh03
+          - rhel-laptop-default-gh01
+          - rhel-laptop-default-gh02
+          - rhel-laptop-default-gh03
 
     runs-on:
       - self-hosted
@@ -93,21 +93,23 @@ jobs:
             -InstallationPolicy Trusted -Force
         }
 
-        # Save PackageManagement manually
+        # Save PackageManagement
         $pmVer = '1.4.8.1'
         $pmPath = "$env:HOME/.local/share/powershell/Modules"
         Save-Module -Name PackageManagement -RequiredVersion $pmVer -Repository PSGallery -Path $pmPath -Force
 
-        # Verify it actually saved correctly
-        $pmModulePath = Join-Path "$pmPath/PackageManagement" "$pmVer/PackageManagement.psd1"
-        if (-Not (Test-Path $pmModulePath)) {
-          Write-Warning "❌ PackageManagement.psd1 not found at: $pmModulePath"
+        # Verify save result
+        $pmImportPath = "$pmPath/PackageManagement/$pmVer"
+        if (-Not (Test-Path "$pmImportPath/PackageManagement.psd1")) {
+          Write-Warning "❌ PackageManagement.psd1 not found at: $pmImportPath"
           Get-ChildItem -Recurse -Path "$pmPath/PackageManagement" | Format-List
           throw "❌ PackageManagement.psd1 missing after Save-Module. Check above for details."
         }
 
-        Write-Host "🔧 Importing PackageManagement from path: $pmModulePath"
-        Import-Module $pmModulePath -Force
+        # Import full module directory (NOT just .psd1)
+        Write-Host "🔧 Importing PackageManagement from: $pmImportPath"
+        Import-Module $pmImportPath -Force
+        Write-Host "📋 Exported cmdlets: $(Get-Command -Module PackageManagement | Select-Object -ExpandProperty Name | Sort-Object | Out-String)"
 
         # Register NuGet provider
         $nugetProviderPath = Join-Path $targetPath 'NuGet.psd1'
