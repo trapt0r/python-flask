@@ -11,8 +11,9 @@ jobs:
 
     runs-on: [self-hosted, "${{ matrix.runner }}"]
 
+
     env:
-      LOCAL_PS_PATH: ~/.local/share/powershell/Modules
+      LOCAL_PS_PATH: $HOME/.local/share/powershell/Modules
 
     steps:
     - name: Ensure local module dir exists
