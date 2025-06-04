@@ -21,7 +21,7 @@ jobs:
     - name: Ensure local module dir exists
       run: mkdir -p "$LOCAL_PS_PATH"
 
-    - name: 🔍 Debug: Confirm PackageManagement.psd1 exists
+    - name: 🔍 Debug Confirm PackageManagement.psd1 exists
       shell: bash
       run: |
         echo "Checking: $LOCAL_PS_PATH/PackageManagement/1.4.8.1"
