@@ -8,7 +8,7 @@ jobs:
     strategy:
       matrix:
         runner_label:
-          - rhel-laptop
+          - rhel-laptop-default
           - rhel-laptop-default-gh01
           - rhel-laptop-default-gh02
           - rhel-laptop-default-gh03
@@ -18,34 +18,35 @@ jobs:
       - ${{ matrix.runner_label }}
 
     steps:
-    # 1️⃣ Set module path
+    # 1️⃣ Set local PowerShell module path for user scope
     - name: Set PowerShell module path
       shell: bash
       run: |
         echo "LOCAL_PS_PATH=$HOME/.local/share/powershell/Modules" >> "$GITHUB_ENV"
         echo "PSModulePath=$HOME/.local/share/powershell/Modules:$PSModulePath" >> "$GITHUB_ENV"
 
-    # 2️⃣ Clean old PackageManagement cache
+    # 2️⃣ Clear PackageManagement cache in case of bad bootstrap state
     - name: Clean PackageManagement cache
       shell: bash
       run: rm -rf ~/.local/share/PackageManagement
 
-    # 3️⃣ Create module path if needed
+    # 3️⃣ Ensure local module directory exists
     - name: Ensure local module dir exists
       shell: bash
       run: mkdir -p "$LOCAL_PS_PATH"
 
-    # 4️⃣ Cache Az and dependency modules
-    - name: Cache Az modules
+    # 4️⃣ Cache Az modules and NuGet provider
+    - name: Cache Az modules and NuGet
       uses: actions/cache@v4
       id: az-cache
       with:
         path: |
           ${{ env.LOCAL_PS_PATH }}
           ~/.local/share/PackageManagement
+          ~/.local/share/powershell/Modules/NuGet
         key: az-modules-${{ hashFiles('**/module-version.txt') }}
 
-    # 5️⃣ Install Az + dependencies (PowerShellGet, PackageManagement, NuGet)
+    # 5️⃣ Install Az modules with manually bootstrapped NuGet provider
     - name: Install Az (CurrentUser scope only)
       if: steps.az-cache.outputs.cache-hit != 'true'
       shell: pwsh
@@ -55,43 +56,40 @@ jobs:
         $ErrorActionPreference = 'Stop'
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-        # Versions you trust
-        $pgver = '2.2.5'
-        $pmver = '1.4.8.1'
+        $nugetUrl = "https://www.powershellgallery.com/api/v2/package/NuGet/2.8.5.208"
+        $targetPath = "$env:HOME/.local/share/powershell/Modules/NuGet"
 
-        # Install PackageManagement & PowerShellGet cleanly
-        Write-Host "🔧 Installing PackageManagement $pmver..."
-        Install-Module PackageManagement -RequiredVersion $pmver -Scope CurrentUser -Force -Confirm:$false
+        # Pre-create module target folder
+        mkdir -Force -Path $targetPath | Out-Null
 
-        Write-Host "🔧 Installing PowerShellGet $pgver..."
-        Install-Module PowerShellGet -RequiredVersion $pgver -Scope CurrentUser -Force -Confirm:$false
+        # Download and extract NuGet provider manually
+        $nupkg = "$env:HOME/NuGet.2.8.5.208.nupkg"
+        Invoke-WebRequest -Uri $nugetUrl -OutFile $nupkg
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        [System.IO.Compression.ZipFile]::ExtractToDirectory($nupkg, $targetPath)
+        Remove-Item $nupkg
 
-        Import-Module PackageManagement -Force
-        Import-Module PowerShellGet -Force
-
-        # Register PSGallery if missing
+        # Register PSGallery if needed
         if (-not (Get-PackageSource -Name PSGallery -ErrorAction SilentlyContinue)) {
           Register-PSRepository -Name PSGallery `
             -SourceLocation "https://www.powershellgallery.com/api/v2" `
             -InstallationPolicy Trusted -Force
         }
 
-        # Install NuGet provider
-        if (-not (Get-PackageProvider -Name NuGet -ErrorAction SilentlyContinue)) {
-          Install-PackageProvider -Name NuGet -Scope CurrentUser -Force
-        }
+        # Import NuGet provider manually
+        Import-PackageProvider -Name NuGet -RequiredVersion 2.8.5.208 -Force
 
-        # Finally, install Az
+        # Install Az module (finally!)
         Install-Module -Name Az -Scope CurrentUser -Repository PSGallery -Force -Confirm:$false
 
-    # 6️⃣ Sanity check for Az
+    # 6️⃣ Basic module import verification
     - name: Verify Az import
       shell: pwsh
       run: |
         Import-Module Az.Accounts
         Get-Module Az.* | Select-Object Name, Version | Sort-Object Name
 
-    # 7️⃣ Smoke test each Az module
+    # 7️⃣ Smoke test: ensure all Az modules import cleanly (no Pester)
     - name: Smoke-test Az modules (no Pester)
       shell: pwsh
       env:
