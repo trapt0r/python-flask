@@ -62,3 +62,25 @@ jobs:
       run: |
         Import-Module Az.Accounts
         Get-Module Az.* | Select-Object Name,Version | Sort-Object Name
+        
+    - name: Pester smoke-test- Az modules import cleanly
+      shell: pwsh
+      run: |
+        # Install Pester only if it's not already there (tiny, 1-2 MB)
+        if (-not (Get-Module -ListAvailable Pester)) {
+          Install-Module Pester -Scope CurrentUser -Force -Confirm:$false
+        }
+    
+        Invoke-Pester -Configuration @{
+          Run = @{
+            Exit = $true           # fail the step if any 'It' block fails
+          }
+        } -ScriptBlock {
+          Describe 'Az modules load' {
+            foreach ($m in Get-Module -ListAvailable -Name Az.*) {
+              It "$($m.Name) imports without error" {
+                { Import-Module $m.Name -Force } | Should -Not -Throw
+              }
+            }
+          }
+        }
